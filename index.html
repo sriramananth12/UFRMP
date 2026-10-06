@@ -556,7 +556,10 @@ async function saveWorkItem(work, isNew){
 }
 
 /* ---------------- Gantt (one row per Gantt line) ---------------- */
-const GANTT_MONTHS = ["Jul-2026","Aug-2026","Sep-2026","Oct-2026","Nov-2026","Dec-2026","Jan-2027","Feb-2027","Mar-2027","Apr-2027","May-2027","Jun-2027","Jul-2027","Aug-2027","Sep-2027","Oct-2027","Nov-2027","Dec-2027"];
+// Jul-2026 through Dec-2031; rows saved with fewer months are padded as empty cells when rendered.
+const GANTT_MONTHS = (()=>{ const names=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'], out=[];
+  for(let y=2026;y<=2031;y++) for(let m=(y===2026?6:0);m<12;m++) out.push(names[m]+'-'+y);
+  return out; })();
 function seedGanttDbShape(){
   const grouped = {};
   Object.keys(SEED_DATA.gantt||{}).forEach(cityId=>{
@@ -1771,10 +1774,10 @@ function renderCityGantt(city, host){
     host.innerHTML = `<div class="card"><div class="empty">No component-level implementation Gantt data available yet for ${esc(city.cityName)}. This is populated from the Revised City-wise Project Timeline &amp; Gantt Matrix document when available.</div></div>`;
     return;
   }
-  const months = rows[0].months;
-  const headerCells = months.map(m=>`<div class="gantt-col-label">${esc(m.replace('-20','-\''))}</div>`).join('');
+  const headerCells = GANTT_MONTHS.map(m=>`<div class="gantt-col-label">${esc(m.replace('-20','-\''))}</div>`).join('');
   const bodyRows = rows.map(r=>{
-    const cells = r.fills.map(f=>{
+    const cells = GANTT_MONTHS.map((_,i)=>{
+      const f = (r.fills||[])[i];
       const color = (f && f!=='F7FAFC') ? (GANTT_COLOR_MAP[f] || ('#'+f)) : 'transparent';
       return `<div class="gantt-cell" style="background:${color}"></div>`;
     }).join('');
@@ -1791,7 +1794,7 @@ function renderCityGantt(city, host){
 
   host.innerHTML = `
     <div class="card">
-      <div class="section-title">Implementation Gantt — ${esc(city.cityName)} <span class="hint">Jul 2026 – Dec 2027 · imported from the Revised Timeline &amp; Gantt Matrix · type badges from the Budget Matrix</span></div>
+      <div class="section-title">Implementation Gantt — ${esc(city.cityName)} <span class="hint">Jul 2026 – Dec 2031 · imported from the Revised Timeline &amp; Gantt Matrix · type badges from the Budget Matrix</span></div>
       <div class="gantt-wrap">
         <div class="gantt-header"><div class="gantt-row-label"></div><div class="gantt-row-cells">${headerCells}</div></div>
         ${bodyRows}
