@@ -621,7 +621,7 @@ async function saveGanttRow(cityId, row, isNew){
 }
 
 /* ---------------- Budget Matrix (one row per line item) ---------------- */
-const BM_FIELDS = ['name','description','geo','agency','estCr','ndmfCr','stateCr','category','type','timeline','remarks'];
+const BM_FIELDS = ['name','description','geo','agency','estCr','ndmfCr','stateCr','category','type','timeline','newTimeline','remarks'];
 const BM_NUMERIC_FIELDS = ['estCr','ndmfCr','stateCr'];
 function bmNum(v){ return (v===''||v==null||isNaN(Number(v))) ? null : Number(v); }
 function seedBudgetMatrixDbShape(){
@@ -630,7 +630,7 @@ function seedBudgetMatrixDbShape(){
     grouped[cityId] = (BUDGET_MATRIX[cityId]||[]).map((r,i)=>({
       id:'bm_seed_'+cityId+'_'+i, name:r.name||'', description:r.description||'', geo:r.geo||'', agency:r.agency||'',
       estCr:bmNum(r.estCr), ndmfCr:bmNum(r.ndmfCr), stateCr:bmNum(r.stateCr),
-      category:r.category||'', type:r.type||'', timeline:r.timeline||'', remarks:r.remarks||''
+      category:r.category||'', type:r.type||'', timeline:r.timeline||'', newTimeline:r.newTimeline||'', remarks:r.remarks||''
     }));
   });
   return grouped;
@@ -1510,7 +1510,7 @@ function exportLiveDataToXLSX(){
       'City Programme ID': cityId, 'Project/Item Name': r.name, 'Description': r.description,
       'Geography/Extent': r.geo, 'Implementing Agency': r.agency, 'Estimated Cost (Cr)': r.estCr,
       'NDMF Share (Cr)': r.ndmfCr, 'State Share (Cr)': r.stateCr, 'Category': r.category,
-      'Type': r.type, 'Timeline': r.timeline, 'Remarks': r.remarks
+      'Type': r.type, 'Agreed Timeline': r.timeline, 'New Timeline': r.newTimeline, 'Remarks': r.remarks
     }));
   });
   addSheet('Budget Matrix', budgetRows);
@@ -1777,6 +1777,7 @@ function renderCityBudgetMatrix(city, host){
       <td style="min-width:100px;font-size:12px;">${esc(r.type||'—')}</td>
       <td style="min-width:100px;font-size:12px;">${esc(r.category||'—')}</td>
       <td style="min-width:150px;font-size:12px;">${esc(r.timeline||'—')}</td>
+      <td style="min-width:150px;font-size:12px;">${esc(r.newTimeline||'—')}</td>
       <td style="min-width:160px;font-size:12px;color:var(--muted);">${esc(r.remarks||'—')}</td>
     </tr>`).join('');
   host.innerHTML = `
@@ -1784,11 +1785,11 @@ function renderCityBudgetMatrix(city, host){
     <div class="card">
       <div class="section-title">Budget Matrix — ${esc(city.cityName)}<span class="hint">Annexure V · Table 3B — project-wise capture as submitted</span></div>
       <div style="overflow-x:auto;">
-        <table style="min-width:1400px;">
+        <table style="min-width:1550px;">
           <thead><tr>
             <th>Name of Project</th><th>Brief Description</th><th>Geographical Coverage</th><th>Implementing Agency</th>
             <th class="num">Estimated Budget</th><th class="num">NDMF/GoI Share</th><th class="num">State Share</th>
-            <th>Structural / Non-Structural</th><th>Project Category</th><th>Timeline</th><th>Remarks</th>
+            <th>Structural / Non-Structural</th><th>Project Category</th><th>Agreed Timeline</th><th>New Timeline</th><th>Remarks</th>
           </tr></thead>
           <tbody>${trs}
             <tr>
@@ -1796,7 +1797,7 @@ function renderCityBudgetMatrix(city, host){
               <td class="num mono" style="font-weight:700;">${formatAmountFromRupees(totalEst*1e7)}</td>
               <td class="num mono" style="font-weight:700;">${formatAmountFromRupees(totalNdmf*1e7)}</td>
               <td class="num mono" style="font-weight:700;">${formatAmountFromRupees(totalState*1e7)}</td>
-              <td colspan="4"></td>
+              <td colspan="5"></td>
             </tr>
           </tbody>
         </table>
@@ -2216,6 +2217,7 @@ function renderCityEntry(city, host){
         <td><select class="bm-f" data-f="type">${typeOpts.map(t=>`<option ${r.type===t?'selected':''}>${esc(t)}</option>`).join('')}</select></td>
         <td><input type="text" class="bm-f" data-f="category" value="${esc(r.category||'')}" style="min-width:100px;"></td>
         <td><input type="text" class="bm-f" data-f="timeline" value="${esc(r.timeline||'')}" style="min-width:100px;"></td>
+        <td><input type="text" class="bm-f" data-f="newTimeline" value="${esc(r.newTimeline||'')}" style="min-width:100px;"></td>
         <td><textarea class="bm-f" data-f="remarks" rows="2" style="min-width:120px;">${esc(r.remarks||'')}</textarea></td>
         <td style="white-space:nowrap;">
           <button type="button" class="btn bm-save" data-rowid="${esc(r.id)}" style="padding:5px 10px;font-size:11px;">Save</button>
@@ -2225,9 +2227,9 @@ function renderCityEntry(city, host){
     fh.innerHTML = `
       <div class="section-title" style="margin-bottom:8px;">Budget Matrix — editable table <span class="hint">edit any field then click Save on that row · Annexure V / Table 3B</span></div>
       <div style="overflow-x:auto;">
-        <table style="min-width:1300px;">
-          <thead><tr><th>Name</th><th>Description</th><th>Geo</th><th>Agency</th><th>Est (₹ Cr)</th><th>NDMF (₹ Cr)</th><th>State (₹ Cr)</th><th>Type</th><th>Category</th><th>Timeline</th><th>Remarks</th><th>Actions</th></tr></thead>
-          <tbody>${bmRows.length ? bmRows.map(rowHtml).join('') : `<tr><td colspan="12" style="text-align:center;color:var(--muted);padding:16px;">No Budget Matrix rows yet for ${esc(city.cityName)} — click "+ Add Row" below.</td></tr>`}</tbody>
+        <table style="min-width:1420px;">
+          <thead><tr><th>Name</th><th>Description</th><th>Geo</th><th>Agency</th><th>Est (₹ Cr)</th><th>NDMF (₹ Cr)</th><th>State (₹ Cr)</th><th>Type</th><th>Category</th><th>Agreed Timeline</th><th>New Timeline</th><th>Remarks</th><th>Actions</th></tr></thead>
+          <tbody>${bmRows.length ? bmRows.map(rowHtml).join('') : `<tr><td colspan="13" style="text-align:center;color:var(--muted);padding:16px;">No Budget Matrix rows yet for ${esc(city.cityName)} — click "+ Add Row" below.</td></tr>`}</tbody>
         </table>
       </div>
       <div class="form-actions"><button type="button" class="btn" id="bmAddRowBtn">+ Add Row</button></div>
@@ -2236,7 +2238,7 @@ function renderCityEntry(city, host){
       const get = f => tr.querySelector(`[data-f="${f}"]`).value;
       return { name:get('name'), description:get('description'), geo:get('geo'), agency:get('agency'),
         estCr: get('estCr')===''?null:Number(get('estCr')), ndmfCr: get('ndmfCr')===''?null:Number(get('ndmfCr')), stateCr: get('stateCr')===''?null:Number(get('stateCr')),
-        type: get('type'), category: get('category'), timeline: get('timeline'), remarks: get('remarks') };
+        type: get('type'), category: get('category'), timeline: get('timeline'), newTimeline: get('newTimeline'), remarks: get('remarks') };
     };
     fh.querySelectorAll('.bm-save').forEach(btn=>{
       btn.addEventListener('click', async ()=>{
@@ -2267,7 +2269,7 @@ function renderCityEntry(city, host){
     const bmAddRowBtn = document.getElementById('bmAddRowBtn');
     if(bmAddRowBtn) bmAddRowBtn.addEventListener('click', ()=>{
       DB.budgetMatrix[city.id] = DB.budgetMatrix[city.id] || [];
-      DB.budgetMatrix[city.id].push({ id: uid('bm'), name:'', description:'', geo:'', agency:'', estCr:null, ndmfCr:null, stateCr:null, category:'', type:'Structural', timeline:'', remarks:'' });
+      DB.budgetMatrix[city.id].push({ id: uid('bm'), name:'', description:'', geo:'', agency:'', estCr:null, ndmfCr:null, stateCr:null, category:'', type:'Structural', timeline:'', newTimeline:'', remarks:'' });
       render();
     });
   }
