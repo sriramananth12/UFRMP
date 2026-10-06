@@ -138,8 +138,9 @@
   /* Sign-in screen, signed-in user box, User Logins page */
   .login-screen{position:fixed;inset:0;z-index:300;background:var(--water-deep);display:flex;align-items:center;justify-content:center;padding:16px;}
   .login-card{background:var(--surface);border-radius:12px;padding:28px 28px 22px;width:100%;max-width:360px;box-shadow:0 10px 30px rgba(0,0,0,.25);}
-  .login-card h1{font-size:19px;margin-bottom:4px;}
-  .login-card p{font-size:12.5px;color:var(--muted);margin-bottom:18px;}
+  .login-logo{display:block;width:128px;height:128px;margin:0 auto 14px;}
+  .login-card h1{font-size:19px;margin-bottom:4px;text-align:center;}
+  .login-card p{font-size:12.5px;color:var(--muted);margin-bottom:18px;text-align:center;}
   .login-card .btn{width:100%;margin-top:4px;}
   .sidebar-user{font-size:11.5px;color:#CFE6E2;padding:12px 4px 4px;border-top:1px solid rgba(255,255,255,.12);margin:10px 0;line-height:1.5;word-break:break-word;}
   .sidebar-user strong{color:#fff;}
@@ -309,6 +310,7 @@
 
 <div class="login-screen" id="loginScreen" style="display:none;">
   <form class="login-card" id="loginForm">
+    <img class="login-logo" src="ufrmp-logo.png" alt="UFRMP logo" width="128" height="128">
     <h1>UFRMP Dashboard</h1>
     <p>Urban Flood Risk Management Programme. Sign in with the username and password you were given.</p>
     <div class="field"><label for="loginUser">Username</label><input id="loginUser" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required></div>
