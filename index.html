@@ -135,6 +135,23 @@
   .msg.ok{background:#E3F1EA;color:var(--green);}
   .msg.err{background:#F8E7E5;color:var(--red);}
 
+  /* Sign-in screen, signed-in user box, User Logins page */
+  .login-screen{position:fixed;inset:0;z-index:300;background:var(--water-deep);display:flex;align-items:center;justify-content:center;padding:16px;}
+  .login-card{background:var(--surface);border-radius:12px;padding:28px 28px 22px;width:100%;max-width:360px;box-shadow:0 10px 30px rgba(0,0,0,.25);}
+  .login-logo{display:block;width:128px;height:128px;margin:0 auto 14px;}
+  .login-card h1{font-size:19px;margin-bottom:4px;text-align:center;}
+  .login-card p{font-size:12.5px;color:var(--muted);margin-bottom:18px;text-align:center;}
+  .login-card .btn{width:100%;margin-top:4px;}
+  .sidebar-user{font-size:11.5px;color:#CFE6E2;padding:12px 4px 4px;border-top:1px solid rgba(255,255,255,.12);margin:10px 0;line-height:1.5;word-break:break-word;}
+  .sidebar-user strong{color:#fff;}
+  .sidebar-user button{margin-top:8px;background:none;border:1px solid rgba(255,255,255,.3);color:#EAF3F1;border-radius:6px;padding:4px 10px;font-size:11.5px;}
+  .sidebar-user button:hover{background:rgba(255,255,255,.08);}
+  .users-table td{vertical-align:middle;}
+  .users-table input, .users-table select{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;font-family:'Inter',sans-serif;}
+  .users-actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;}
+  .btn.danger{background:none;border:1px solid #E3C4C0;color:var(--red);}
+  .btn.danger:hover{background:#F8E7E5;}
+
   .photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;}
   .photo-card{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff;}
   .photo-card img{width:100%;height:100px;object-fit:cover;display:block;background:#eee;}
@@ -291,6 +308,18 @@
 </head>
 <body>
 
+<div class="login-screen" id="loginScreen" style="display:none;">
+  <form class="login-card" id="loginForm">
+    <img class="login-logo" src="ufrmp-logo.png" alt="UFRMP logo" width="128" height="128">
+    <h1>UFRMP Dashboard</h1>
+    <p>Urban Flood Risk Management Programme. Sign in with the username and password you were given.</p>
+    <div class="field"><label for="loginUser">Username</label><input id="loginUser" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required></div>
+    <div class="field"><label for="loginPass">Password</label><input id="loginPass" name="password" type="password" autocomplete="current-password" required></div>
+    <div class="msg err" id="loginMsg"></div>
+    <button class="btn" type="submit" id="loginBtn">Sign in</button>
+  </form>
+</div>
+
 <div class="shell">
   <div class="sidebar">
     <div class="brand">
@@ -305,11 +334,13 @@
     </div>
     <div class="nav">
       <button data-nav="dashboard" class="active">◧ Dashboard</button>
+      <button data-nav="users" style="display:none;">⚿ User Logins</button>
     </div>
     <div class="sidebar-label">Cities</div>
     <div class="sidebar-city-list" id="sidebarCityList"></div>
     <div class="nav-spacer"></div>
-    <div class="sidebar-foot">Data is shared across everyone using this dashboard link. Photos stored as embedded images.</div>
+    <div class="sidebar-user" id="sidebarUser" style="display:none;"></div>
+    <div class="sidebar-foot">Only signed-in users can see this data. City logins see their own city. Photos stored as embedded images.</div>
   </div>
 
   <div class="main" id="main"></div>
@@ -363,10 +394,26 @@ function sbFetch(input, init){
 }
 const supabaseClient = (window.supabase && typeof window.supabase.createClient === 'function' && SUPABASE_URL && SUPABASE_ANON_KEY)
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: { persistSession: false, autoRefreshToken: false },
+      auth: { persistSession: true, autoRefreshToken: true, storageKey: 'ufrmp-auth' },
       global: { fetch: sbFetch }
     })
   : null;
+
+/* ---------------------------------------------------------------
+   SIGN-IN AND ACCESS
+   Everyone signs in with a username and password (Supabase Auth; a
+   username signs in as "<username>@ufrmp.local" behind the scenes).
+   Each login has a row in user_profiles: the master login sees and
+   edits every city and manages the other logins; a city login sees
+   and edits only its own city. Postgres row-level security enforces
+   this on the server (supabase/schema.sql), so the checks in this
+   page only decide what is shown.
+--------------------------------------------------------------- */
+const LOGIN_EMAIL_DOMAIN = 'ufrmp.local'; // must match supabase/functions/ufrmp-admin/index.ts
+function usernameToEmail(username){ return String(username||'').trim().toLowerCase() + '@' + LOGIN_EMAIL_DOMAIN; }
+let CURRENT_USER = null; // { id, username, role:'master'|'city', cityId }
+function isMaster(){ return !!CURRENT_USER && CURRENT_USER.role === 'master'; }
+function userCityId(){ return CURRENT_USER && CURRENT_USER.role === 'city' ? CURRENT_USER.cityId : null; }
 let SUPABASE_ONLINE = !!supabaseClient;
 let SUPABASE_WRITE_FAILED = false;
 function supabaseReady(){ return SUPABASE_ONLINE; }
@@ -405,6 +452,71 @@ async function sbDelete(table, column, value){
   return true;
 }
 function nowIso(){ return new Date().toISOString(); }
+
+/* City data in kv_store is kept one key per city ("components@<cityId>",
+   etc., with that city in city_id) so row-level security can limit a city
+   login to its own city. The rest of the page still reads and writes each
+   collection as one value: these helpers merge it on load and split it by
+   city on save. Items whose city can't be worked out stay under the plain
+   key, which only the master can read. */
+function componentCityId(componentId){ const c = DB.components.find(x=>x.id===componentId); return c ? c.cityProgrammeId : null; }
+function workCityId(work){ const d = work && DB.dprs.find(x=>x.id===work.dprId); return d ? componentCityId(d.componentId) : null; }
+const CITY_SCOPED_KV = {
+  cityProgrammes: { cityOf: c=>c.id },
+  components:     { cityOf: c=>c.cityProgrammeId },
+  dprs:           { cityOf: d=>componentCityId(d.componentId) },  // needs DB.components, which loads first
+  timelines:      { cityOf: t=>componentCityId(t.componentId) },
+  meData:         { object: true }  // { [cityId]: {...} }
+};
+const KV_SCOPED_SAVED = {}; // key -> value last read or written, so saves skip unchanged cities
+function cityRank(cityId){ const i = CITY_SEED.findIndex(c=>c.id===cityId); return i<0 ? CITY_SEED.length : i; }
+async function sbLoadCityScoped(name){
+  const { data, error } = await supabaseClient.from(SB_KV_TABLE).select('key,value,city_id').like('key', name + '%');
+  if(error) throw new Error(error.message);
+  const rows = (data||[]).filter(r=>r.key===name || r.key.startsWith(name+'@'));
+  rows.forEach(r=>{ KV_SCOPED_SAVED[r.key] = r.value; });
+  if(!rows.length) return null;
+  // plain key first, then cities in programme order (new cities after, by id)
+  rows.sort((a,b)=>(a.city_id?1:0)-(b.city_id?1:0) || cityRank(a.city_id)-cityRank(b.city_id) || String(a.key).localeCompare(String(b.key)));
+  const spec = CITY_SCOPED_KV[name];
+  if(spec.object){
+    const out = {};
+    rows.forEach(r=>{ const v = JSON.parse(r.value)||{}; Object.keys(v).forEach(c=>{ if(!r.city_id || c===r.city_id) out[c] = v[c]; }); });
+    return JSON.stringify(out);
+  }
+  let out = [];
+  rows.forEach(r=>{
+    const v = JSON.parse(r.value);
+    if(!Array.isArray(v)) return;
+    // skip anything a city's key files under a different city
+    out = out.concat(r.city_id ? v.filter(item=>{ const c = spec.cityOf(item); return !c || c===r.city_id; }) : v);
+  });
+  return JSON.stringify(out);
+}
+async function sbSaveCityScoped(name, value){
+  const spec = CITY_SCOPED_KV[name], groups = {};
+  if(spec.object) Object.keys(value||{}).forEach(c=>{ groups[c] = { [c]: value[c] }; });
+  else (value||[]).forEach(item=>{ const c = spec.cityOf(item) || ''; (groups[c] = groups[c]||[]).push(item); });
+  // every key seen before (so a city emptied out is cleared) plus every city now present
+  const keys = new Set(Object.keys(KV_SCOPED_SAVED).filter(k=>k===name || k.startsWith(name+'@')));
+  Object.keys(groups).forEach(c=>keys.add(c ? name+'@'+c : name));
+  const records = [];
+  keys.forEach(key=>{
+    const cityId = key===name ? null : key.slice(name.length+1);
+    if(!isMaster() && cityId !== userCityId()){
+      if(groups[cityId||'']) console.warn(`Not saving "${key}": this login can only change its own city.`);
+      return;
+    }
+    const str = JSON.stringify(groups[cityId||''] || (spec.object ? {} : []));
+    if(KV_SCOPED_SAVED[key] !== str) records.push({ key, value: str, city_id: cityId, updated_at: nowIso() });
+  });
+  if(records.length) await sbUpsert(SB_KV_TABLE, records, 'key');
+  records.forEach(r=>{ KV_SCOPED_SAVED[r.key] = r.value; });
+}
+function kvCityId(key){
+  if(key.startsWith('photos:')) return workCityId(DB.works.find(w=>w.id===key.slice(7)));
+  return null;
+}
 
 /* Local layer: Claude's built-in storage if present, else localStorage,
    else an in-memory map (private windows, storage disabled, quota full). */
@@ -469,6 +581,12 @@ function ensureStorage(){
     async get(key, shared){
       if(!supabaseReady()) return LOCAL_STORE.get(key, shared);
       try{
+        if(CITY_SCOPED_KV[key]){
+          const merged = await sbLoadCityScoped(key);
+          if(merged === null) return null;
+          await localCacheSet(key, merged);
+          return { key, value: merged, shared };
+        }
         const { data, error } = await supabaseClient.from(SB_KV_TABLE).select('value').eq('key', key).maybeSingle();
         if(error) throw new Error(error.message);
         if(!data) return null;
@@ -479,7 +597,10 @@ function ensureStorage(){
     async set(key, value, shared){
       await localCacheSet(key, value);
       if(supabaseReady()){
-        try{ await sbUpsert(SB_KV_TABLE, [{ key, value: String(value), updated_at: nowIso() }], 'key'); }
+        try{
+          if(CITY_SCOPED_KV[key]) await sbSaveCityScoped(key, JSON.parse(value));
+          else await sbUpsert(SB_KV_TABLE, [{ key, value: String(value), city_id: kvCityId(key), updated_at: nowIso() }], 'key');
+        }
         catch(e){ supabaseWriteFailed('KVStore', e); }
       }
       return { key, value, shared };
@@ -527,15 +648,21 @@ function seedWorkRowsWithMigrations(){
   });
   return rows;
 }
-function workToRecord(w){ return { id: w.id, data: w, updated_at: nowIso() }; }
-// Loads works from the "works" table; seeds that table (once) if it's empty.
+function workToRecord(w){ return { id: w.id, city_id: workCityId(w), data: w, updated_at: nowIso() }; }
+const WORK_ROW_CITY = {}; // work id -> city_id stored on its row, to spot rows needing their city filled in
+// Loads works from the "works" table; the master seeds that table (once) if it's empty.
+// Runs after components and DPRs load, so each work's city can be worked out.
 async function loadWorks(){
   if(supabaseReady()){
     try{
       const recs = await sbSelectAll(SB_WORKS_TABLE);
       let works;
       if(recs.length){
-        works = recs.map(r=>coerceWorkRow(Object.assign({}, r.data, { id: r.id })));
+        recs.forEach(r=>{ WORK_ROW_CITY[r.id] = r.city_id || null; });
+        works = recs.map(r=>coerceWorkRow(Object.assign({}, r.data, { id: r.id })))
+          .filter(w=>{ const c = WORK_ROW_CITY[w.id]; const actual = workCityId(w); return !c || !actual || c===actual; });
+      } else if(!isMaster()){
+        works = [];
       } else {
         works = seedWorkRowsWithMigrations();
         await sbUpsert(SB_WORKS_TABLE, works.map(workToRecord));
@@ -547,6 +674,7 @@ async function loadWorks(){
   // Supabase unavailable — last copy saved in this browser, else the built-in seed data.
   const local = await loadArr('works');
   if(Array.isArray(local) && local.length) return local;
+  if(!isMaster()) return [];
   const seed = seedWorkRowsWithMigrations();
   await saveArrLocal('works', seed);
   return seed;
@@ -602,6 +730,7 @@ async function loadGantt(){
       const recs = await sbSelectAll(SB_GANTT_TABLE);
       let gantt;
       if(recs.length) gantt = ganttRecordsToDbShape(recs);
+      else if(!isMaster()) gantt = {};
       else {
         gantt = seedGanttDbShape();
         const seedRecs = ganttDbShapeToRecords(gantt);
@@ -613,6 +742,7 @@ async function loadGantt(){
   }
   const raw = await loadArr('ganttData');
   if(raw && !Array.isArray(raw) && Object.keys(raw).length) return raw;
+  if(!isMaster()) return {};
   const seed = seedGanttDbShape();
   await saveArrLocal('ganttData', seed);
   return seed;
@@ -667,6 +797,7 @@ async function loadBudgetMatrix(){
       const recs = await sbSelectAll(SB_BUDGETMATRIX_TABLE);
       let bm;
       if(recs.length) bm = budgetMatrixRecordsToDbShape(recs);
+      else if(!isMaster()) bm = {};
       else {
         bm = seedBudgetMatrixDbShape();
         const seedRecs = budgetMatrixDbShapeToRecords(bm);
@@ -678,6 +809,7 @@ async function loadBudgetMatrix(){
   }
   const raw = await loadArr('budgetMatrix');
   if(raw && !Array.isArray(raw) && Object.keys(raw).length) return raw;
+  if(!isMaster()) return {};
   const seed = seedBudgetMatrixDbShape();
   await saveArrLocal('budgetMatrix', seed);
   return seed;
@@ -898,6 +1030,7 @@ async function loadAll(){
   DB.budgetMatrix = await loadBudgetMatrix();
   const meRaw = await loadArr('meData');
   DB.meData = (Array.isArray(meRaw) && meRaw.length===0) ? {} : meRaw;
+  if(!isMaster()) return; // only the master seeds empty tables and runs data migrations
   if(!DB.cityProgrammes.length){
     DB.cityProgrammes = deepClone(CITY_SEED);
     await saveArr('cityProgrammes', DB.cityProgrammes);
@@ -916,6 +1049,18 @@ async function loadAll(){
     await applyMigrationV3();
     await applyMigrationV4();
   }
+  await fillInWorkCities();
+}
+// Works are saved with their city so city logins can reach them. Works seeded
+// before their DPRs existed, or moved to another DPR, get their city filled in here.
+async function fillInWorkCities(){
+  if(!supabaseReady()) return;
+  const stale = DB.works.filter(w=>{ const c = workCityId(w); return c && WORK_ROW_CITY[w.id] !== c; });
+  if(!stale.length) return;
+  try{
+    await sbUpsert(SB_WORKS_TABLE, stale.map(workToRecord));
+    stale.forEach(w=>{ WORK_ROW_CITY[w.id] = workCityId(w); });
+  }catch(e){ supabaseWriteFailed('Works city', e); }
 }
 async function applyMigrationV2(){
   const flag = await loadArr('migrationV2Applied');
@@ -1567,7 +1712,7 @@ function renderCity(){
   const tabs = [['overview','Overview'],['components','Components & DPRs'],['gantt','Implementation Gantt'],['budgetmatrix','Budget Matrix'],['timeline','Approval Timeline'],['me','Monitoring & Evaluation'],['entry','Data Entry']];
 
   main.innerHTML = `
-    <div class="crumb"><span onclick="gotoDashboard()">All Cities</span> / ${esc(city.cityName)}</div>
+    <div class="crumb">${isMaster() ? '<span onclick="gotoDashboard()">All Cities</span> / ' : ''}${esc(city.cityName)}</div>
     <div class="page-head">
       <div><h1>${esc(city.cityName)} ${phasePill(city.phase)}</h1><p>NDMF Share: <strong>${fmtCr(city.ndmfShareCr)}</strong></p></div>
     </div>
@@ -2611,18 +2756,273 @@ function showMsg(text, ok=true){
 /* ---------------------------------------------------------------
    ROUTER
 --------------------------------------------------------------- */
-function render(){
-  if(ROUTE.page==='dashboard') renderDashboard();
-  else if(ROUTE.page==='city') renderCity();
+/* ---------------------------------------------------------------
+   RENDER: USER LOGINS (master only)
+   Logins are created and changed through the ufrmp-admin Edge
+   Function, which checks on the server that the caller is the
+   master. The page never holds the service role key.
+--------------------------------------------------------------- */
+const USERNAME_RE = /^[A-Za-z0-9._-]{3,32}$/; // same rule as the Edge Function
+const MIN_PASSWORD_LENGTH = 8;
+let USERS_LIST = null;    // user_profiles rows, null until loaded
+let usersEditingId = null;
+async function adminCall(action, payload){
+  const { data, error } = await supabaseClient.functions.invoke('ufrmp-admin', { body: Object.assign({ action }, payload) });
+  if(error){
+    let text = error.message;
+    try{ const body = await error.context.json(); if(body && body.error) text = body.error; }catch(e){}
+    throw new Error(text);
+  }
+  return data;
 }
+async function refreshUsers(){
+  try{
+    const { data, error } = await supabaseClient.from('user_profiles').select('user_id,username,role,city_id');
+    if(error) throw new Error(error.message);
+    USERS_LIST = (data||[]).sort((a,b)=>(a.role==='master'?0:1)-(b.role==='master'?0:1) || cityRank(a.city_id)-cityRank(b.city_id) || a.username.localeCompare(b.username));
+  }catch(e){
+    USERS_LIST = null;
+    document.getElementById('main').innerHTML = `<div class="empty">Could not load the logins: ${esc(e.message||e)}</div>`;
+    return;
+  }
+  if(ROUTE.page==='users') renderUsers();
+}
+function userCityLabel(cityId){ const c = getCity(cityId); return c ? `${c.cityName} · Phase ${c.phase}` : `${cityId} (city not found)`; }
+function cityOptionsHtml(selected, withLoginCount){
+  return DB.cityProgrammes.map(c=>{
+    const n = withLoginCount ? (USERS_LIST||[]).filter(u=>u.city_id===c.id).length : 1;
+    return `<option value="${esc(c.id)}" ${c.id===selected?'selected':''}>${esc(c.cityName)} · Phase ${c.phase}${n?'':' (no login yet)'}</option>`;
+  }).join('');
+}
+function renderUsers(){
+  const main = document.getElementById('main');
+  buildSidebarCityList();
+  if(USERS_LIST===null){ main.innerHTML = '<div class="empty">Loading logins…</div>'; refreshUsers(); return; }
+  const rows = USERS_LIST.map(u=>{
+    const self = CURRENT_USER && u.user_id===CURRENT_USER.id;
+    if(u.user_id===usersEditingId){
+      return `<tr data-user="${esc(u.user_id)}">
+        <td><input name="username" value="${esc(u.username)}" autocomplete="off" spellcheck="false"></td>
+        <td>${u.role==='master' ? '<span class="pill blue">Master · all cities</span>' : `<select name="cityId">${cityOptionsHtml(u.city_id, false)}</select>`}</td>
+        <td><input name="password" type="password" placeholder="Leave blank to keep" autocomplete="new-password"></td>
+        <td><div class="users-actions"><button class="btn small" onclick="saveUserEdit('${esc(u.user_id)}')">Save</button><button class="btn small ghost" onclick="editUser(null)">Cancel</button></div></td>
+      </tr>`;
+    }
+    return `<tr>
+      <td><strong>${esc(u.username)}</strong>${self?' <span style="color:var(--muted);font-size:11.5px;">(you)</span>':''}</td>
+      <td>${u.role==='master' ? '<span class="pill blue">Master · all cities</span>' : esc(userCityLabel(u.city_id))}</td>
+      <td style="color:var(--muted);">••••••••</td>
+      <td><div class="users-actions"><button class="btn small ghost" onclick="editUser('${esc(u.user_id)}')">Edit</button>${u.role==='city'?`<button class="btn small danger" onclick="deleteUserLogin('${esc(u.user_id)}')">Remove</button>`:''}</div></td>
+    </tr>`;
+  }).join('');
+  main.innerHTML = `
+    <div class="page-head"><div>
+      <div class="crumb"><span onclick="gotoDashboard()">Dashboard</span> / User Logins</div>
+      <h1>User Logins</h1>
+      <p>The master login sees and edits every city and manages logins here. Each city login sees and edits only its own city.</p>
+    </div></div>
+    <div id="msgBox" class="msg"></div>
+    <div class="card">
+      <div class="section-title">Add a city login <span class="hint">usernames: 3–32 letters, numbers, . _ or - · passwords: ${MIN_PASSWORD_LENGTH}+ characters</span></div>
+      <form id="fAddUser" autocomplete="off">
+        <div class="grid3">
+          <div class="field"><label>City</label><select name="cityId" required>${cityOptionsHtml(null, true)}</select></div>
+          <div class="field"><label>Username</label><input name="username" required spellcheck="false" autocomplete="off"></div>
+          <div class="field"><label>Password</label><input name="password" type="password" required autocomplete="new-password"></div>
+        </div>
+        <div class="form-actions"><button class="btn" type="submit">Create login</button></div>
+      </form>
+    </div>
+    <div class="card">
+      <div class="section-title">Logins <span class="hint">${USERS_LIST.length} in total · passwords can be reset but never shown</span></div>
+      <table class="users-table">
+        <thead><tr><th style="width:28%">Username</th><th style="width:30%">Access</th><th>Password</th><th></th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="4" class="empty">No logins yet.</td></tr>'}</tbody>
+      </table>
+    </div>`;
+  document.getElementById('fAddUser').addEventListener('submit', async e=>{
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const username = String(fd.get('username')||'').trim(), password = String(fd.get('password')||''), cityId = fd.get('cityId');
+    const problem = checkLoginInput(username, password, true);
+    if(problem) return showMsg(problem, false);
+    const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true;
+    try{
+      await adminCall('create', { username, password, cityId });
+      await refreshUsers();
+      showMsg(`Login "${username}" created for ${userCityLabel(cityId)}.`);
+    }catch(err){ btn.disabled = false; showMsg(err.message, false); }
+  });
+}
+function checkLoginInput(username, password, passwordRequired){
+  if(!USERNAME_RE.test(username)) return 'Usernames need 3–32 characters: letters, numbers, dot, underscore or hyphen.';
+  if((passwordRequired || password) && password.length < MIN_PASSWORD_LENGTH) return `Passwords need at least ${MIN_PASSWORD_LENGTH} characters.`;
+  return '';
+}
+function editUser(userId){ usersEditingId = userId; renderUsers(); }
+async function saveUserEdit(userId){
+  const row = document.querySelector(`tr[data-user="${CSS.escape(userId)}"]`); if(!row) return;
+  const u = USERS_LIST.find(x=>x.user_id===userId); if(!u) return;
+  const username = row.querySelector('[name=username]').value.trim();
+  const password = row.querySelector('[name=password]').value;
+  const citySel = row.querySelector('[name=cityId]');
+  const problem = checkLoginInput(username, password, false);
+  if(problem) return showMsg(problem, false);
+  const payload = { userId };
+  if(username !== u.username) payload.username = username;
+  if(password) payload.password = password;
+  if(citySel && citySel.value !== u.city_id) payload.cityId = citySel.value;
+  if(Object.keys(payload).length === 1){ editUser(null); return; }
+  row.querySelectorAll('button').forEach(b=>b.disabled = true);
+  try{
+    await adminCall('update', payload);
+    if(CURRENT_USER && userId===CURRENT_USER.id && payload.username){ CURRENT_USER.username = payload.username; applyUserChrome(); }
+    usersEditingId = null;
+    await refreshUsers();
+    showMsg(`Login "${username}" updated.` + (payload.password ? ' The new password works from the next sign-in.' : ''));
+  }catch(err){ row.querySelectorAll('button').forEach(b=>b.disabled = false); showMsg(err.message, false); }
+}
+async function deleteUserLogin(userId){
+  const u = (USERS_LIST||[]).find(x=>x.user_id===userId); if(!u) return;
+  if(!confirm(`Remove the login "${u.username}" for ${userCityLabel(u.city_id)}? Its city data stays; only the login is removed.`)) return;
+  try{
+    await adminCall('delete', { userId });
+    await refreshUsers();
+    showMsg(`Login "${u.username}" removed.`);
+  }catch(err){ showMsg(err.message, false); }
+}
+window.editUser = editUser;
+window.saveUserEdit = saveUserEdit;
+window.deleteUserLogin = deleteUserLogin;
+document.querySelector('[data-nav="users"]').addEventListener('click', ()=>{
+  ROUTE = { page:'users', cityId:null, cityTab:'overview', componentId:null, dprId:null, workId:null };
+  usersEditingId = null;
+  render();
+});
 
-(async function init(){
+/* ---------------------------------------------------------------
+   SIGN-IN SCREEN AND SESSION
+--------------------------------------------------------------- */
+function showLogin(message){
+  CURRENT_USER = null;
+  document.getElementById('main').innerHTML = '';
+  document.getElementById('loginScreen').style.display = '';
+  const msg = document.getElementById('loginMsg');
+  msg.textContent = message || '';
+  msg.classList.toggle('show', !!message);
+  const btn = document.getElementById('loginBtn'); btn.disabled = false; btn.textContent = 'Sign in';
+  document.getElementById('loginUser').focus();
+}
+document.getElementById('loginForm').addEventListener('submit', async e=>{
+  e.preventDefault();
+  const username = document.getElementById('loginUser').value.trim();
+  const password = document.getElementById('loginPass').value;
+  const msg = document.getElementById('loginMsg'), btn = document.getElementById('loginBtn');
+  if(!supabaseClient) return showLogin('The sign-in service could not be loaded. Check your internet connection and reload the page.');
+  btn.disabled = true; btn.textContent = 'Signing in…'; msg.classList.remove('show');
+  let result;
+  try{ result = await supabaseClient.auth.signInWithPassword({ email: usernameToEmail(username), password }); }
+  catch(err){ result = { error: err }; }
+  if(result.error || !result.data || !result.data.user){
+    const text = result.error && !/invalid login credentials|invalid.*email/i.test(result.error.message||'')
+      ? 'Could not sign in: ' + (result.error.message || result.error) : 'Wrong username or password.';
+    return showLogin(text);
+  }
+  document.getElementById('loginPass').value = '';
+  await startSignedIn(result.data.user);
+});
+// A browser shared between logins keeps no copy of another login's data.
+function forgetOtherLoginsLocalCopy(userId){
+  try{
+    if(localStorage.getItem('ufrmp:lastUser') === userId) return;
+    clearLocalCopy();
+    localStorage.setItem('ufrmp:lastUser', userId);
+  }catch(e){}
+}
+function clearLocalCopy(){
+  try{
+    const keys = [];
+    for(let i=0;i<localStorage.length;i++){ const k = localStorage.key(i); if(k && (k.startsWith('ufrmp:S:') || k.startsWith('ufrmp:P:'))) keys.push(k); }
+    keys.forEach(k=>localStorage.removeItem(k));
+  }catch(e){}
+  Object.keys(MEMORY_STORE).forEach(k=>delete MEMORY_STORE[k]);
+}
+async function signOut(){
+  clearLocalCopy();
+  try{ localStorage.removeItem('ufrmp:lastUser'); }catch(e){}
+  CURRENT_USER = null;
+  try{ await supabaseClient.auth.signOut(); }catch(e){}
+  location.reload();
+}
+window.signOut = signOut;
+function applyUserChrome(){
+  const box = document.getElementById('sidebarUser');
+  if(!CURRENT_USER){ box.style.display = 'none'; return; }
+  const city = getCity(userCityId());
+  const access = isMaster() ? 'Master · all cities' : (city ? city.cityName + ' · Phase ' + city.phase : 'City login');
+  box.innerHTML = `Signed in as <strong>${esc(CURRENT_USER.username)}</strong><br>${esc(access)}<br><button onclick="signOut()">Sign out</button>`;
+  box.style.display = '';
+  document.querySelector('[data-nav="users"]').style.display = isMaster() ? '' : 'none';
+  document.querySelector('[data-nav="dashboard"]').style.display = isMaster() ? '' : 'none';
+  const sub = document.querySelector('.brand-sub');
+  if(sub) sub.textContent = isMaster() ? 'UFRMP · ALL CITIES' : 'UFRMP · ' + (city ? city.cityName.toUpperCase() : 'CITY');
+}
+async function startSignedIn(user){
+  document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('main').innerHTML = '<div class="empty">Loading programme data…</div>';
+  let profile = null, problem = '';
+  try{
+    const { data, error } = await supabaseClient.from('user_profiles').select('username,role,city_id').eq('user_id', user.id).maybeSingle();
+    if(error) throw new Error(error.message);
+    profile = data;
+  }catch(e){ problem = 'Could not check your access: ' + (e.message||e) + '. Reload the page to try again.'; }
+  if(!profile){
+    try{ await supabaseClient.auth.signOut(); }catch(e){}
+    return showLogin(problem || 'This login has no access to the dashboard. Ask the master login to set it up.');
+  }
+  CURRENT_USER = { id: user.id, username: profile.username, role: profile.role, cityId: profile.city_id };
+  forgetOtherLoginsLocalCopy(user.id);
   await loadAll();
+  applyUserChrome();
+  if(!isMaster()) ROUTE = { page:'city', cityId:userCityId(), cityTab:'overview', componentId:null, dprId:null, workId:null };
   showStorageBanner();
   render();
   const xlsxFab = document.getElementById('xlsxFab');
   if(xlsxFab) xlsxFab.disabled = false;
+}
+
+/* ---------------------------------------------------------------
+   ROUTER
+   A city login only ever sees its own city; the server enforces the
+   same rule on the data itself.
+--------------------------------------------------------------- */
+function render(){
+  if(!CURRENT_USER) return;
+  if(!isMaster()){
+    if(ROUTE.page!=='city' || ROUTE.cityId!==userCityId())
+      ROUTE = { page:'city', cityId:userCityId(), cityTab:'overview', componentId:null, dprId:null, workId:null };
+    if(!getCity(userCityId())){
+      document.getElementById('main').innerHTML = '<div class="empty">No programme data has been set up for your city yet. Ask the master login to add it.</div>';
+      return;
+    }
+  }
+  document.querySelector('[data-nav="dashboard"]').classList.toggle('active', ROUTE.page==='dashboard');
+  document.querySelector('[data-nav="users"]').classList.toggle('active', ROUTE.page==='users');
+  if(ROUTE.page==='dashboard') renderDashboard();
+  else if(ROUTE.page==='city') renderCity();
+  else if(ROUTE.page==='users') renderUsers();
+}
+
+(async function init(){
+  if(!supabaseClient) return showLogin('The sign-in service could not be loaded. Check your internet connection and reload the page.');
+  supabaseClient.auth.onAuthStateChange(event=>{
+    // signed out elsewhere, or the session could not be renewed
+    if(event==='SIGNED_OUT' && CURRENT_USER) location.reload();
+  });
+  let session = null;
+  try{ session = (await supabaseClient.auth.getSession()).data.session; }catch(e){}
+  if(!session) return showLogin();
+  await startSignedIn(session.user);
 })();
 </script>
 </body>
