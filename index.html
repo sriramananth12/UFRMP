@@ -205,6 +205,12 @@
   .step-comments{margin-top:8px;background:#F6F9F8;border:1px solid var(--line);border-radius:7px;padding:10px 12px;font-size:12.5px;color:var(--muted);line-height:1.6;display:none;}
   .step-comments.show{display:block;}
   .step-extra{margin-top:6px;font-size:12px;color:var(--muted);}
+  .pkg-link{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:12.5px;}
+  .pkg-link-label{font-weight:600;color:var(--ink);}
+  .pkg-link-url{color:var(--water-deep);word-break:break-all;flex:1;min-width:0;}
+  .pkg-link-empty{color:var(--muted);font-style:italic;flex:1;}
+  .pkg-link-input{flex:1;min-width:200px;padding:6px 9px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;}
+  .pkg-link-msg.err{color:#B3261E;font-size:12px;}
   .obs-box{background:#F6F9F8;border:1px solid var(--line);border-radius:8px;padding:12px 14px;font-size:12.5px;color:var(--ink);line-height:1.6;white-space:pre-wrap;}
   .obs-box.empty-note{color:var(--muted);font-style:italic;}
 
@@ -1501,7 +1507,8 @@ function exportLiveDataToXLSX(){
     'Appraisal Committee Meeting Date': t.appraisalCommitteeMeetingDate,
     'HLC Meeting Date': t.hlcMeetingDate, '1st Installment Date': t.firstInstallmentDate,
     '1st Installment Amount (INR)': t.firstInstallmentAmount,
-    'MHA Observations': t.mhaObservations, 'DoE Observations': t.doeObservations
+    'MHA Observations': t.mhaObservations, 'DoE Observations': t.doeObservations,
+    'Link': t.packageLink
   })));
 
   const budgetRows = [];
@@ -1924,6 +1931,59 @@ function renderCityTimeline(city, host){
   }).join('') || `<div class="empty">No projects for ${esc(city.cityName)} yet — add one from Data Entry first.</div>`;
   host.innerHTML = `<div class="card"><div class="section-title">Approval Timelines — ${esc(city.cityName)}</div>${rows}</div>`;
 }
+/* One editable link line under the Approval & Funding Milestones stepper.
+   Stored as packageLink on the component's timeline record. */
+function safeLinkUrl(raw){
+  const v = String(raw||'').trim();
+  if(!v) return '';
+  const withScheme = /^[a-z][a-z0-9+.-]*:/i.test(v) ? v : 'https://' + v;
+  try { const u = new URL(withScheme); return (u.protocol==='http:'||u.protocol==='https:') ? u.href : null; }
+  catch(e){ return null; }
+}
+function renderPackageLinkLine(componentId, t, editing=false){
+  const link = t.packageLink || '';
+  const href = link ? safeLinkUrl(link) : '';
+  let body;
+  if(editing){
+    body = `<input class="pkg-link-input" type="url" value="${esc(link)}" placeholder="Paste a link (e.g. https://drive.google.com/...)">
+      <button class="btn small" onclick="savePackageLink('${componentId}', this)">Save</button>
+      <button class="btn ghost small" onclick="editPackageLink('${componentId}', false, this)">Cancel</button>`;
+  } else {
+    body = `${link
+        ? (href ? `<a class="pkg-link-url" href="${esc(href)}" target="_blank" rel="noopener noreferrer">${esc(link)}</a>` : `<span class="pkg-link-url">${esc(link)}</span>`)
+        : `<span class="pkg-link-empty">No link added yet.</span>`}
+      <button class="btn ghost small" onclick="editPackageLink('${componentId}', true, this)">${link?'Edit':'Add link'}</button>`;
+  }
+  return `<div class="pkg-link" data-comp="${componentId}"><span class="pkg-link-label">Link</span>${body}<span class="pkg-link-msg"></span></div>`;
+}
+function editPackageLink(componentId, editing, btn){
+  const row = btn.closest('.pkg-link');
+  row.outerHTML = renderPackageLinkLine(componentId, timelineFor(componentId) || {}, editing);
+  if(editing){
+    const inp = document.querySelector(`.pkg-link[data-comp="${componentId}"] .pkg-link-input`);
+    if(inp){
+      inp.focus();
+      inp.addEventListener('keydown', e=>{
+        if(e.key==='Enter'){ e.preventDefault(); savePackageLink(componentId, inp); }
+        if(e.key==='Escape'){ editPackageLink(componentId, false, inp); }
+      });
+    }
+  }
+}
+async function savePackageLink(componentId, btn){
+  const row = btn.closest('.pkg-link');
+  const raw = row.querySelector('.pkg-link-input').value.trim();
+  const msg = row.querySelector('.pkg-link-msg');
+  const href = raw ? safeLinkUrl(raw) : '';
+  if(href===null){ msg.textContent = 'Enter a web link starting with http:// or https://'; msg.className = 'pkg-link-msg err'; return; }
+  let rec = timelineFor(componentId);
+  if(!rec){ rec = { id: uid('tl'), componentId }; DB.timelines.push(rec); }
+  const prev = rec.packageLink;
+  rec.packageLink = href;
+  const ok = await saveArr('timelines', DB.timelines);
+  if(!ok){ rec.packageLink = prev; msg.textContent = 'Could not save, try again.'; msg.className = 'pkg-link-msg err'; return; }
+  editPackageLink(componentId, false, btn);
+}
 function renderCityTimelineDetail(city, host){
   const c = DB.components.find(x=>x.id===ROUTE.componentId);
   if(!c){ setCityDrill({componentId:null}); return; }
@@ -1970,7 +2030,7 @@ function renderCityTimelineDetail(city, host){
   host.innerHTML = `
     <div class="crumb"><span onclick="setCityDrill({componentId:null})">${esc(city.cityName)} timelines</span> / ${esc(c.name)}</div>
     ${renderUnitToggle()}
-    <div class="card"><div class="section-title">Approval &amp; Funding Milestones — ${esc(c.name)}<span class="hint">Instalments released in a 30% : 40% : 30% ratio of the NDMF Share</span></div><div class="stepper">${stepsHtml}</div></div>
+    <div class="card"><div class="section-title">Approval &amp; Funding Milestones — ${esc(c.name)}<span class="hint">Instalments released in a 30% : 40% : 30% ratio of the NDMF Share</span></div><div class="stepper">${stepsHtml}</div>${renderPackageLinkLine(c.id, t)}</div>
     <div class="card">
       <div class="section-title">MHA Observations</div>
       <div class="obs-box ${t.mhaObservations?'':'empty-note'}">${t.mhaObservations? esc(t.mhaObservations) : 'No MHA observations recorded yet.'}</div>
