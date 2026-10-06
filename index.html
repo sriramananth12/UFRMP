@@ -1585,7 +1585,7 @@ function renderCityOverview(city){
     const cf = cityFinancial(city.id);
     const works = worksForComponent(c.id);
     const phys = works.length? works.reduce((s,w)=>s+Number(w.physicalProgressPct||0),0)/works.length : 0;
-    return `<div class="comp-row" onclick="setCityDrill({cityTab:'components',componentId:'${c.id}'})">
+    return `<div class="comp-row" onclick="setCityTab('components')">
       <div class="comp-main"><div class="name">${esc(c.name)}</div><div class="meta">${esc(c.sector||'General')} · ${dprsForComponent(c.id).length} DPR(s)</div></div>
       <div class="comp-bars"><div><div class="barlabel"><span>Physical</span><span>${phys.toFixed(0)}%</span></div>${waveBar(phys)}</div></div>
       <div class="comp-figs"><div class="big">${fmtMoney(c.approvedBudget)}</div><div class="small">approved budget</div></div>
@@ -1628,66 +1628,15 @@ function renderCityOverview(city){
   `;
 }
 
-/* ---- Components & DPRs (scoped to a city) ---- */
+/* ---- City Projects (scoped to a city): the city's DPR summary and its components ---- */
 function renderCityComponents(city, host){
   if(ROUTE.workId){ renderCityWorkDetail(city, host); return; }
-  if(ROUTE.dprId){ renderCityDprDetail(city, host); return; }
-  if(ROUTE.componentId){ renderCityComponentDetail(city, host); return; }
 
-  const comps = componentsForCity(city.id);
-  let rows = comps.map(c=>{
-    const f2 = (()=>{ const works = worksForComponent(c.id); const phys = works.length? works.reduce((s,w)=>s+Number(w.physicalProgressPct||0),0)/works.length:0; return {phys, dprCount:dprsForComponent(c.id).length, workCount:works.length}; })();
-    return `<tr class="clickable" onclick="setCityDrill({componentId:'${c.id}'})">
-      <td>${esc(c.name)}</td><td>${esc(c.sector||'—')}</td>
-      <td class="num">${fmtMoney(c.approvedBudget)}</td>
-      <td class="num">${f2.dprCount}</td><td class="num">${f2.workCount}</td><td class="num">${f2.phys.toFixed(0)}%</td>
-    </tr>`;
-  }).join('');
-
-  host.innerHTML = `
-    ${renderUnitToggle()}
-    <div class="card">
-      <div class="section-title">Projects in ${esc(city.cityName)}<span class="hint">click a row to drill into DPRs &amp; Components</span></div>
-      ${comps.length ? `<table><thead><tr><th>Project</th><th>Sector</th><th class="num">Approved Budget</th><th class="num">DPRs</th><th class="num">Components</th><th class="num">Physical %</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">No projects yet. Go to Data Entry to add the first one for ${esc(city.cityName)}.</div>`}
-    </div>
-  `;
-}
-function renderCityComponentDetail(city, host){
-  const c = DB.components.find(x=>x.id===ROUTE.componentId);
-  if(!c){ setCityDrill({componentId:null}); return; }
-  const dprs = dprsForComponent(c.id);
-  let dprRows = dprs.map(d=>{
-    const works = worksForDpr(d.id);
-    const physAvg = works.length? works.reduce((s,w)=>s+Number(w.physicalProgressPct||0),0)/works.length : 0;
-    return `<tr class="clickable" onclick="setCityDrill({componentId:'${c.id}',dprId:'${d.id}'})">
-      <td>${esc(d.name)}</td><td>${fmtDate(d.sanctionDate)}</td>
-      <td class="num">${fmtMoney(d.dprAmount)}</td><td class="num">${fmtMoney(d.stateShare)}</td><td class="num">${fmtMoney(d.centralShare)}</td>
-      <td class="num">${works.length}</td><td class="num">${physAvg.toFixed(0)}%</td>
-    </tr>`;
-  }).join('');
-  host.innerHTML = `
-    <div class="crumb"><span onclick="setCityDrill({componentId:null})">${esc(city.cityName)} projects</span> / ${esc(c.name)}</div>
-    ${renderUnitToggle()}
-    <div class="card">
-      <div class="section-title">${esc(c.name)}<span class="hint">${esc(c.description||'')}</span></div>
-      <div class="grid3">
-        <div><div class="barlabel"><span>Approved Budget</span></div><div class="mono">${fmtMoney(c.approvedBudget)}</div></div>
-        <div><div class="barlabel"><span>Sector</span></div><div class="mono">${esc(c.sector||'—')}</div></div>
-        <div><div class="barlabel"><span>DPRs</span></div><div class="mono">${dprs.length}</div></div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="section-title">Detailed Project Reports (DPRs)</div>
-      ${dprs.length ? `<table><thead><tr><th>DPR</th><th>Sanction Date</th><th class="num">DPR Amount</th><th class="num">State Share</th><th class="num">Central Share</th><th class="num">Components</th><th class="num">Physical %</th></tr></thead><tbody>${dprRows}</tbody></table>` : `<div class="empty">No DPR added under this project yet.</div>`}
-    </div>
-  `;
-}
-function renderCityDprDetail(city, host){
-  const c = DB.components.find(x=>x.id===ROUTE.componentId);
-  const d = DB.dprs.find(x=>x.id===ROUTE.dprId);
-  if(!c||!d){ setCityDrill({dprId:null}); return; }
-  const works = worksForDpr(d.id);
+  const dprs = componentsForCity(city.id).flatMap(c=>dprsForComponent(c.id));
+  const works = worksForCity(city.id);
   const numbers = cityWorkNumbers(city.id);
+  const sum = k => dprs.reduce((s,d)=>s+Number(d[k]||0),0);
+  const dprTitle = dprs.length===1 ? dprs[0].name : `Detailed Project Reports — ${city.cityName}`;
   let rows = works.map(w=>{
     const bmRow = matchBudgetMatrixRow(w, city.id);
     return `<tr class="clickable" onclick="setCityDrill({workId:'${w.id}'})">
@@ -1698,27 +1647,24 @@ function renderCityDprDetail(city, host){
     <td class="num">${Number(w.physicalProgressPct||0).toFixed(0)}%</td><td class="num">${Number(w.financialProgressPct||0).toFixed(0)}%</td>
   </tr>`;}).join('');
   host.innerHTML = `
-    <div class="crumb"><span onclick="setCityDrill({componentId:null,dprId:null})">${esc(city.cityName)} projects</span> / <span onclick="setCityDrill({dprId:null})">${esc(c.name)}</span> / ${esc(d.name)}</div>
     ${renderUnitToggle()}
-    <div class="card">
-      <div class="section-title">${esc(d.name)}</div>
+    ${dprs.length ? `<div class="card">
+      <div class="section-title">${esc(dprTitle)}</div>
       <div class="grid3">
-        <div><div class="barlabel"><span>DPR Amount</span></div><div class="mono">${fmtMoney(d.dprAmount)}</div></div>
-        <div><div class="barlabel"><span>State Share</span></div><div class="mono">${fmtMoney(d.stateShare)}</div></div>
-        <div><div class="barlabel"><span>Central Share</span></div><div class="mono">${fmtMoney(d.centralShare)}</div></div>
+        <div><div class="barlabel"><span>DPR Amount</span></div><div class="mono">${fmtMoney(sum('dprAmount'))}</div></div>
+        <div><div class="barlabel"><span>State Share</span></div><div class="mono">${fmtMoney(sum('stateShare'))}</div></div>
+        <div><div class="barlabel"><span>Central Share</span></div><div class="mono">${fmtMoney(sum('centralShare'))}</div></div>
       </div>
-    </div>
+    </div>` : ''}
     <div class="card">
-      <div class="section-title">Components<span class="hint">numbered to match this city's Project Briefs on the Overview tab · Structural/Non-Structural from the Budget Matrix</span></div>
-      ${works.length? `<table><thead><tr><th class="num">#</th><th>Component</th><th>Status</th><th>Type</th><th class="num">DPR Amt</th><th class="num">Tender Amt</th><th class="num">Award Amt</th><th class="num">Physical %</th><th class="num">Financial %</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">No components added under this DPR yet.</div>`}
+      <div class="section-title">Projects in ${esc(city.cityName)}<span class="hint">numbered to match this city's Project Briefs on the Overview tab · Structural/Non-Structural from the Budget Matrix · click a row for details</span></div>
+      ${works.length? `<table><thead><tr><th class="num">#</th><th>Component</th><th>Status</th><th>Type</th><th class="num">DPR Amt</th><th class="num">Tender Amt</th><th class="num">Award Amt</th><th class="num">Physical %</th><th class="num">Financial %</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">No projects yet. Go to Data Entry to add the first one for ${esc(city.cityName)}.</div>`}
     </div>
   `;
 }
 async function renderCityWorkDetail(city, host){
-  const c = DB.components.find(x=>x.id===ROUTE.componentId);
-  const d = DB.dprs.find(x=>x.id===ROUTE.dprId);
   const w = DB.works.find(x=>x.id===ROUTE.workId);
-  if(!c||!d||!w){ setCityDrill({workId:null}); return; }
+  if(!w){ setCityDrill({workId:null}); return; }
   host.innerHTML = `<div class="empty">Loading component…</div>`;
   const photos = await loadPhotos(w.id);
   const before = photos.filter(p=>p.category==='before');
@@ -1736,7 +1682,7 @@ async function renderCityWorkDetail(city, host){
   }
   const numbers = cityWorkNumbers(city.id);
   host.innerHTML = `
-    <div class="crumb"><span onclick="setCityDrill({componentId:null,dprId:null,workId:null})">${esc(city.cityName)} projects</span> / <span onclick="setCityDrill({dprId:null,workId:null})">${esc(c.name)}</span> / <span onclick="setCityDrill({workId:null})">${esc(d.name)}</span> / ${esc(w.name)}</div>
+    <div class="crumb"><span onclick="setCityDrill({workId:null})">${esc(city.cityName)} projects</span> / ${esc(w.name)}</div>
     ${renderUnitToggle()}
     <div class="card">
       <div class="section-title"><span class="project-num">${numbers[w.id]||'—'}</span>${esc(w.name)} ${statusPill(w.status)}<span class="hint">Contractor: ${esc(w.contractor||'—')}</span></div>
