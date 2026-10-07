@@ -310,7 +310,10 @@
 
 <div class="login-screen" id="loginScreen" style="display:none;">
   <form class="login-card" id="loginForm">
-    <img class="login-logo" src="ufrmp-logo.png" alt="UFRMP logo" width="128" height="128">
+    <picture>
+      <source srcset="ufrmp-logo.png" media="(prefers-reduced-motion: reduce)">
+      <img class="login-logo" src="ufrmp-logo.webp" alt="UFRMP logo" width="128" height="128">
+    </picture>
     <h1>UFRMP Dashboard</h1>
     <p>Urban Flood Risk Management Programme. Sign in with the username and password you were given.</p>
     <div class="field"><label for="loginUser">Username</label><input id="loginUser" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required></div>
