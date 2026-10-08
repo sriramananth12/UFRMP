@@ -91,6 +91,22 @@ create policy "read own or all as master" on public.user_profiles for select to 
 revoke all on public.user_profiles from anon, authenticated;
 grant select on public.user_profiles to authenticated;
 
+-- Readable copies of passwords set from the User Logins page, so the master
+-- can look them up (Sriram's choice, 2026-10-08). Only the master can read
+-- them; only the ufrmp-admin Edge Function writes them. Passwords set before
+-- this table existed have no copy.
+create table if not exists public.login_passwords (
+  user_id     uuid primary key references auth.users (id) on delete cascade,
+  password    text not null,
+  updated_at  timestamptz not null default now()
+);
+alter table public.login_passwords enable row level security;
+drop policy if exists "master reads" on public.login_passwords;
+create policy "master reads" on public.login_passwords for select to authenticated
+  using ((select public.ufrmp_is_master()));
+revoke all on public.login_passwords from anon, authenticated;
+grant select on public.login_passwords to authenticated;
+
 -- ------------------------------------------------------------------
 -- Row-level security on the data tables: the master can do anything, a city
 -- login only touches rows whose city_id is its own city. The anon key alone
