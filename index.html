@@ -150,6 +150,10 @@
   .sidebar-user button:hover{background:rgba(255,255,255,.08);}
   .users-table td{vertical-align:middle;}
   .users-table input, .users-table select{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;font-family:'Inter',sans-serif;}
+  .pw-wrap{position:relative;}
+  .pw-wrap input{padding-right:38px !important;}
+  .pw-eye{position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);padding:5px 6px;border-radius:5px;line-height:0;}
+  .pw-eye:hover{color:var(--ink);background:#F1F5F4;}
   .users-actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;}
   .btn.danger{background:none;border:1px solid #E3C4C0;color:var(--red);}
   .btn.danger:hover{background:#F8E7E5;}
@@ -334,7 +338,10 @@
 
 <div class="login-screen" id="loginScreen" style="display:none;">
   <form class="login-card" id="loginForm">
-    <img class="login-logo" src="ufrmp-logo.png" alt="UFRMP logo" width="128" height="128">
+    <picture>
+      <source srcset="ufrmp-logo.png" media="(prefers-reduced-motion: reduce)">
+      <img class="login-logo" src="ufrmp-logo.webp" alt="UFRMP logo" width="128" height="128">
+    </picture>
     <h1>UFRMP Dashboard</h1>
     <p>Urban Flood Risk Management Programme. Sign in with the username and password you were given.</p>
     <div class="field"><label for="loginUser">Username</label><input id="loginUser" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required></div>
@@ -3145,7 +3152,7 @@ function renderUsers(){
       return `<tr data-user="${esc(u.user_id)}">
         <td><input name="username" value="${esc(u.username)}" autocomplete="off" spellcheck="false"></td>
         <td>${u.role==='master' ? '<span class="pill blue">Master · all cities</span>' : `<select name="cityId">${cityOptionsHtml(u.city_id, false)}</select>`}</td>
-        <td><input name="password" type="password" placeholder="Leave blank to keep" autocomplete="new-password"></td>
+        <td>${passwordInputHtml('placeholder="Leave blank to keep" autocomplete="new-password"')}</td>
         <td><div class="users-actions"><button class="btn small" onclick="saveUserEdit('${esc(u.user_id)}')">Save</button><button class="btn small ghost" onclick="editUser(null)">Cancel</button></div></td>
       </tr>`;
     }
@@ -3169,7 +3176,7 @@ function renderUsers(){
         <div class="grid3">
           <div class="field"><label>City</label><select name="cityId" required>${cityOptionsHtml(null, true)}</select></div>
           <div class="field"><label>Username</label><input name="username" required spellcheck="false" autocomplete="off"></div>
-          <div class="field"><label>Password</label><input name="password" type="password" required autocomplete="new-password"></div>
+          <div class="field"><label>Password</label>${passwordInputHtml('required autocomplete="new-password"')}</div>
         </div>
         <div class="form-actions"><button class="btn" type="submit">Create login</button></div>
       </form>
@@ -3195,6 +3202,22 @@ function renderUsers(){
     }catch(err){ btn.disabled = false; showMsg(err.message, false); }
   });
 }
+const EYE_OPEN = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_SHUT = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A9.8 9.8 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.1M6.6 6.6C3.8 8.4 2 12 2 12s3.6 7 10 7a9.6 9.6 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
+// Password box with an eye button that shows or hides what was typed.
+function passwordInputHtml(attrs){
+  return `<div class="pw-wrap"><input name="password" type="password" ${attrs}><button type="button" class="pw-eye" onclick="togglePasswordVisible(this)" title="Show password" aria-label="Show password" aria-pressed="false">${EYE_OPEN}</button></div>`;
+}
+function togglePasswordVisible(btn){
+  const input = btn.parentElement.querySelector('input');
+  const show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  btn.innerHTML = show ? EYE_SHUT : EYE_OPEN;
+  btn.title = show ? 'Hide password' : 'Show password';
+  btn.setAttribute('aria-label', btn.title);
+  btn.setAttribute('aria-pressed', String(show));
+}
+window.togglePasswordVisible = togglePasswordVisible;
 function checkLoginInput(username, password, passwordRequired){
   if(!USERNAME_RE.test(username)) return 'Usernames need 3–32 characters: letters, numbers, dot, underscore or hyphen.';
   if((passwordRequired || password) && password.length < MIN_PASSWORD_LENGTH) return `Passwords need at least ${MIN_PASSWORD_LENGTH} characters.`;
