@@ -27,6 +27,7 @@
     --p1:#0E6BA8;
     --p2:#2E7D5B;
     --p3:#C97A2B;
+    --p4:#7A5BB5;
     --radius:10px;
   }
   *{box-sizing:border-box;}
@@ -102,6 +103,7 @@
   .pill.p1{background:#E4F1F8;color:var(--p1);}
   .pill.p2{background:#E3F1EA;color:var(--p2);}
   .pill.p3{background:#FBEEDF;color:var(--p3);}
+  .pill.p4{background:#EFEAF8;color:var(--p4);}
 
   table{width:100%;border-collapse:collapse;font-size:13px;}
   th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line);}
@@ -278,13 +280,30 @@
   .dash-dark .unit-toggle button.active{ background:#1E6B67; color:#fff; }
 
   /* Phase overview cards */
-  .phase-overview-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
-  @media(max-width:820px){ .phase-overview-grid{ grid-template-columns:1fr; } }
+  .phase-overview-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+  @media(max-width:1100px){ .phase-overview-grid{ grid-template-columns:repeat(2,1fr); } }
+  @media(max-width:620px){ .phase-overview-grid{ grid-template-columns:1fr; } }
   .phase-card{ background:#153538; border:1px solid #22484B; border-left-width:4px; border-radius:10px; padding:14px 16px; cursor:pointer; transition:transform .12s, background .12s; }
   .phase-card:hover{ background:#184246; transform:translateY(-1px); }
   .phase-card-p1{ border-left-color:var(--p1); }
   .phase-card-p2{ border-left-color:var(--p2); }
   .phase-card-p3{ border-left-color:var(--p3); }
+  .phase-card-p4{ border-left-color:var(--p4); }
+  /* City contact details */
+  .contact-form-group{ margin:6px 0 4px; }
+  .contact-form-title{ font-size:11px; text-transform:uppercase; letter-spacing:.05em; font-weight:600; color:var(--water-deep); margin:10px 0 6px; font-family:'IBM Plex Mono'; }
+  .contact-fields{ display:grid; grid-template-columns:repeat(var(--n),1fr); gap:0 14px; }
+  @media(max-width:1100px){ .contact-fields{ grid-template-columns:repeat(2,1fr); } }
+  .contact-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:14px; }
+  .contact-box{ border:1px solid var(--line); border-radius:8px; padding:4px 14px 12px; }
+  .contact-body, .contact-cell{ font-size:12.5px; line-height:1.6; }
+  .contact-body a, .contact-cell a{ color:var(--water); text-decoration:none; }
+  .contact-missing{ color:var(--muted); font-style:italic; }
+  .contact-phase{ margin-top:4px; }
+  .contact-edit{ border:1px solid #2A5558; border-radius:8px; padding:12px 16px; margin-bottom:14px; }
+  .dash-dark .contact-form-title{ color:#8FB9B4; }
+  .dash-dark .contact-cell a{ color:#7FC4F0; }
+  .dash-dark .contact-missing{ color:#7FA7A2; }
   .phase-card-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
   .phase-card-count{ font-size:12px; color:#8FB9B4; font-family:'IBM Plex Mono'; }
   .phase-card-stats{ display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; }
@@ -334,6 +353,7 @@
     </div>
     <div class="nav">
       <button data-nav="dashboard" class="active">◧ Dashboard</button>
+      <button data-nav="phase4" style="display:none;">◈ Phase 4</button>
       <button data-nav="users" style="display:none;">⚿ User Logins</button>
     </div>
     <div class="sidebar-label">Cities</div>
@@ -1010,7 +1030,13 @@ const CITY_SEED = [
   };
 });
 
-const PHASE_CLASS = {1:'p1',2:'p2',3:'p3'};
+const PHASES = [1,2,3,4];
+const PHASE_CLASS = {1:'p1',2:'p2',3:'p3',4:'p4'};
+// NDMF share as a percentage of a city programme's total; the State pays the rest.
+// Phase 4 follows the Phase 3 split until its guidelines say otherwise.
+const PHASE_NDMF_PCT = {1:90,2:90,3:60,4:60};
+function phaseColor(phase){ return `var(--${PHASE_CLASS[phase]||'p1'})`; }
+function phaseOptions(selected){ return PHASES.map(p=>`<option value="${p}" ${p===selected?'selected':''}>Phase ${p}</option>`).join(''); }
 const ME_INDICATORS = [{"group":"Impact","name":"Reduced flood risk to the city","code":"IMPACT","indicator":"% city population protected from flood risk","unit":"%","trend":"+","weight":1,"mov":"HRVA / Flood-Normalized Vulnerability Index by IMD"},{"group":"Outcome I","name":"Reduced incidents of urban flooding","code":"I","indicator":"Number of ward-level flooding incidents in a year","unit":"Number","trend":"-","weight":1,"mov":"City MC database; District-level incident count by IMD"},{"group":"Outcome II","name":"Reduced damage & loss due to urban flooding","code":"II(a)","indicator":"Annual damage to public infrastructure","unit":"INR","trend":"-","weight":0.5,"mov":"DALA/PDNA/Dept. of Finance; Financial Audit Reports"},{"group":"Outcome II","name":"Reduced damage & loss due to urban flooding","code":"II(b)","indicator":"Annual economic loss due to flooding events","unit":"INR","trend":"-","weight":0.5,"mov":"DALA/PDNA/Dept. of Finance; Annual Disastrous Weather Events Report by IMD/SDMA"},{"group":"Outcome III","name":"Reduced human health impact from urban flooding","code":"III(a)","indicator":"Number of incidents of flood-induced fatalities per year","unit":"Number","trend":"-","weight":0.7,"mov":"Health Dept.; Annual Disastrous Weather Events Report by IMD"},{"group":"Outcome III","name":"Reduced human health impact from urban flooding","code":"III(b)","indicator":"Number of incidents of flood-induced diseases & injuries per year","unit":"Number","trend":"-","weight":0.3,"mov":"Health Dept.; Integrated Disease Surveillance Programme (IDSP)"},{"group":"Output 1 \u2014 Preparedness","name":"Improved public and officials' knowledge of flood risks and vulnerabilities","code":"1","indicator":"Is there a flood preparedness plan, publicly available and updated in the last year, covering risk assessment, EWS, evacuation plans, resource inventory, and community engagement?","unit":"Y(2)/Incomplete or not updated(1)/No(0)","trend":"+","weight":1,"mov":"City MC Reports; City MC Website"},{"group":"Output 2 \u2014 Preparedness","name":"Improved emergency operations including flood forecasting instruments and Early Warning Systems (EWS)","code":"2(a)","indicator":"Number of wards at flood risk with functional & effective EWS (accurate \u226570% of the time in the past year)","unit":"Number","trend":"+","weight":0.5,"mov":"HRVA"},{"group":"Output 2 \u2014 Preparedness","name":"Improved emergency operations including flood forecasting instruments and Early Warning Systems (EWS)","code":"2(b)","indicator":"Is there an operational Emergency Operations Center (EOC), with latest information available to the public?","unit":"Y(2)/Partially operational or info unavailable(1)/No(0)","trend":"+","weight":0.5,"mov":"City MC Reports"},{"group":"Output 3 \u2014 Preparedness","name":"Improved functionality of existing flood management infrastructure","code":"3","indicator":"% of existing flood management infrastructure (stormwater drainage pipes and pumps) checked functional before the monsoons","unit":"%","trend":"+","weight":1,"mov":"City MC Reports"},{"group":"Output 4 \u2014 Response","name":"Strengthened public awareness on urban flood risks, prevention, preparedness, and response strategies","code":"4","indicator":"% population under flood risk with awareness of flood management resources and strategies provided by the MC","unit":"%","trend":"+","weight":1,"mov":"HRVA - Community Survey"},{"group":"Output 5 \u2014 Response","name":"Strengthened capacities of public officials for flood prevention and response","code":"5","indicator":"Improved (reduced) average response time of the emergency response team for needed evacuations","unit":"Hours","trend":"-","weight":1,"mov":"City MC Reports"},{"group":"Output 6 \u2014 Recovery","name":"Strengthened cross-department & cross-regional collaboration for flood recovery","code":"6","indicator":"Cross-department & cross-regional trainings/engagements on flood management in the last year, including neighbouring cities/states, all public departments, and civic organisations","unit":"Y(2)/Engagement conducted but not all groups included(1)/No(0)","trend":"+","weight":1,"mov":"City MC Reports"},{"group":"Output 7 \u2014 Recovery","name":"Improved knowledge of damage and loss assessment, and flood recovery strategies of officials and general public","code":"7","indicator":"Number of damage/loss assessment frameworks & flood recovery plans and policies developed/updated within the last year, publicly available","unit":"Number","trend":"+","weight":1,"mov":"City MC Reports"},{"group":"Output 8 \u2014 Mitigation","name":"Enhanced Structural Flood Protection Infrastructure","code":"8","indicator":"% population of the city under flood risk protected by adequate structural infrastructure","unit":"%","trend":"+","weight":1,"mov":"HRVA"},{"group":"Output 9 \u2014 Mitigation","name":"Enhanced resilience of critical public infrastructure systems (Roads, Power, Water, Communication etc.)","code":"9","indicator":"% critical infrastructure systems designed to manage a 1-in-100-yr flood event as per the latest climate data","unit":"%","trend":"+","weight":1,"mov":"HRVA"},{"group":"Output 10 \u2014 Mitigation","name":"Enhanced integration of NBS in the flood management plan","code":"10","indicator":"Number of wards at flood risk with an active nature-based solution in place for flood management","unit":"Number","trend":"+","weight":1,"mov":"HRVA - Hazard & NBS Mapping"},{"group":"Output 11 \u2014 Mitigation","name":"Enhanced institutional & regulatory framework implementation","code":"11(a)","indicator":"% flood management projects with an active M&E reporting process demonstrating positive progress","unit":"%","trend":"+","weight":0.5,"mov":"City MC Reports"},{"group":"Output 11 \u2014 Mitigation","name":"Enhanced institutional & regulatory framework implementation","code":"11(b)","indicator":"Number of flood regulations, plans, and programs reviewed and updated on an annual basis","unit":"Number","trend":"+","weight":0.5,"mov":"City MC Reports; City MC Website"}];
 const UFRM_MATRIX = [{"measure":"Structural (Engineering & Nature-Based Solutions)","outputCode":"O1","code":"1.1","component":"Construction of new UF infrastructure","activities":"Stormwater drainage systems; flood protection structures such as embankments, levees, floodwalls; new pumping stations etc.","kw":["storm water drain","stormwater","drainage system","drain from","box drain","pumping station","embankment","levee","floodwall","construction of storm","swd network","channel linkage","flood wall","protection wall"]},{"measure":"Structural (Engineering & Nature-Based Solutions)","outputCode":"O1","code":"1.2","component":"Maintenance, retrofitting, and upgrades to existing infrastructure","activities":"Upgrading existing drainage systems; floodproofing critical infrastructure etc. (excludes routine O&M such as dredging/desiltation).","kw":["upgrad","retrofit","rehabilitat","remodel","widening","enhancing and remodeling","capacity enhancement","expansion/widening","structural interventions for increasing capacity","nala deepening"]},{"measure":"Structural (Engineering & Nature-Based Solutions)","outputCode":"O2","code":"2.1","component":"Restoration & rejuvenation of urban water bodies","activities":"Restoring catchment flows and making rivers perennial through river network connections; flood buffers near urban water bodies; integrating public tourism to promote community protection of water bodies.","kw":["rejuvenat","restoration of","river rejuvenation","interlinking of water bod","interlinking for flood resilience","water bodies","lake rejuvenation","holding pond","juri river","mithi river","channel linkage to silsako","retention basin","restoration and inter-linking"]},{"measure":"Structural (Engineering & Nature-Based Solutions)","outputCode":"O2","code":"2.2","component":"Protection of natural flood management structures","activities":"Regulations around construction and human activity in areas with swamps, wetlands, mangroves, etc.","kw":["wetland","mangrove","swamp","protection of natural","catch water drain"]},{"measure":"Structural (Engineering & Nature-Based Solutions)","outputCode":"O2","code":"2.3","component":"Establishing new nature-based solutions","activities":"Retention ponds, bioswales, rain gardens, green roofs, cloudburst boulevards, permeable roads etc.","kw":["sponge","percolation","infiltration","rainwater harvesting","bioswale","retention pond","retention tank","eco block","green roof","afforestation","tree plantation","rain garden","pervious surface","gully plug"]},{"measure":"Non-Structural","outputCode":"O3","code":"3.1","component":"Assessments, Reviews & subsequent updates to existing manuals & guidelines","activities":"Risk & vulnerability assessment of physical infrastructure; assessment of adaptive capacity; assessment of funding landscape for innovative UFM solutions.","kw":["assessment","5% fund for studies","research, innovation","feasibility study","gis mapping of","study"]},{"measure":"Non-Structural","outputCode":"O3","code":"3.2/3.3","component":"Preparedness & capacity building","activities":"Community capacity building initiatives; employee capacity building; inter-agency coordination & public-private partnership; updating database of inventories, emergency shelters, lifeline services.","kw":["capacity building","training","awareness","institutional strengthening","command and control cent","ward flood response","monitoring hills","fencing along"]},{"measure":"Non-Structural","outputCode":"O4","code":"4.1/4.2","component":"Early Warning System","activities":"Deploying new technology such as sensors, GIS, dynamic data for the EWS; urban EWS centre with hydrologic & hydraulic modelling for impact-based forecasting; integrating EWS with other EWSs in a multi-hazard approach.","kw":["early warning","scada","flood forecast","satellite phone","aqua map","iec","trash barrier","integrated flood forecast"]}];
 
@@ -1291,11 +1317,11 @@ function statePaths(){
     return `<path d="${d}" fill="none" stroke="#B8C7C4" stroke-width="0.6" stroke-linejoin="round"><title>${esc(s.name)}</title></path>`;
   }).join('');
 }
-function renderMapSvg(){
-  const dots = DB.cityProgrammes.map(c=>{
+function renderMapSvg(cities){
+  const dots = (cities||DB.cityProgrammes).map(c=>{
     const [x,y] = project(c.lat,c.lng);
-    const color = c.phase===1?'var(--p1)':c.phase===2?'var(--p2)':'var(--p3)';
-    const r = c.phase===1?5.5:c.phase===2?4.5:5.5;
+    const color = phaseColor(c.phase);
+    const r = c.phase===2?4.5:5.5;
     return `<circle class="city-dot" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}" fill="${color}" onclick="gotoCity('${c.id}')"><title>${esc(c.cityName)} — Phase ${c.phase}${c.ndmfShareCr?' — ₹'+c.ndmfShareCr+' Cr':''}</title></circle>`;
   }).join('');
   return `<svg viewBox="0 0 ${MAP_W} ${MAP_H}" width="100%" style="max-width:300px;">
@@ -1326,8 +1352,21 @@ function getStateBBox(points){
   const padLon = (lonMax-lonMin)*0.10 || 0.3, padLat = (latMax-latMin)*0.10 || 0.3;
   return {lonMin:lonMin-padLon, lonMax:lonMax+padLon, latMin:latMin-padLat, latMax:latMax+padLat};
 }
+// Cities added from the dashboard have no entry above, so find the state their coordinates fall in.
+function stateForPoint(lat, lng){
+  if(lat==null || lng==null || isNaN(lat) || isNaN(lng)) return null;
+  const hit = STATE_BOUNDARIES.find(s=>{
+    let inside = false;
+    for(let i=0, j=s.points.length-1; i<s.points.length; j=i++){
+      const [xi,yi] = s.points[i], [xj,yj] = s.points[j];
+      if((yi>lat)!==(yj>lat) && lng < (xj-xi)*(lat-yi)/(yj-yi)+xi) inside = !inside;
+    }
+    return inside;
+  });
+  return hit ? hit.name : null;
+}
 function renderCityStateMap(city){
-  const stateName = CITY_STATE_MAP[city.id];
+  const stateName = CITY_STATE_MAP[city.id] || stateForPoint(Number(city.lat), Number(city.lng));
   const st = stateName ? STATE_BOUNDARIES.find(s=>s.name===stateName) : null;
   if(!st){
     return `<div class="empty" style="padding:20px 10px;">State boundary not available for this city.</div>`;
@@ -1337,7 +1376,7 @@ function renderCityStateMap(city){
   const pts = st.points.map(([lo,la])=>projectLocal(la,lo,bbox,W,H));
   const path = 'M ' + pts.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' L ') + ' Z';
   const [cx,cy] = projectLocal(city.lat, city.lng, bbox, W, H);
-  const color = city.phase===1?'var(--water)':city.phase===2?'var(--green)':'var(--amber)';
+  const color = phaseColor(city.phase);
   return `
     <svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:190px;">
       <path d="${path}" fill="#EAF1F0" stroke="#9FB3AF" stroke-width="1.3"/>
@@ -1389,8 +1428,223 @@ window.deleteOtherEvent = deleteOtherEvent;
 /* ---------------------------------------------------------------
    RENDER: DASHBOARD (map + national summary + table)
 --------------------------------------------------------------- */
+/* ---------------------------------------------------------------
+   CITY CONTACT DETAILS
+   Kept on the city programme record (city.contacts), which is saved
+   under that city's own key, so a city login only sees its own city.
+--------------------------------------------------------------- */
+const PHONE_EMAIL_FIELDS = [['phoneOffice','Phone (Office)'],['phonePersonal','Phone (Personal)'],['email','Email ID']];
+const COMMISSIONER_CONTACT_FIELDS = [['name','Name'],['designation','Designation'], ...PHONE_EMAIL_FIELDS];
+const CONTACT_GROUPS = [
+  {key:'mayor', label:'Mayor', fields:[['name','Name'], ...PHONE_EMAIL_FIELDS, ['department','Concerned Department']]},
+  {key:'commissioner', label:'Commissioner', fields:[['name','Name'], ...PHONE_EMAIL_FIELDS]},
+  {key:'commissioner1', label:'Commissioner · 1st Contact', fields:COMMISSIONER_CONTACT_FIELDS},
+  {key:'commissioner2', label:'Commissioner · 2nd Contact', fields:COMMISSIONER_CONTACT_FIELDS},
+  {key:'sdma', label:'SDMA', fields:[['name','Name'],['designation','Designation'], ...PHONE_EMAIL_FIELDS, ['department','Concerned Department']]},
+];
+function contactInputType(field){ return field.startsWith('phone') ? 'tel' : field==='email' ? 'email' : 'text'; }
+function contactFieldsHtml(contacts){
+  contacts = contacts || {};
+  return CONTACT_GROUPS.map(g=>{
+    const v = contacts[g.key] || {};
+    return `<div class="contact-form-group"><div class="contact-form-title">${g.label}</div><div class="contact-fields" style="--n:${g.fields.length}">
+      ${g.fields.map(([f,l])=>`<div class="field"><label>${l}</label><input type="${contactInputType(f)}" name="ct_${g.key}_${f}" value="${esc(v[f]||'')}"></div>`).join('')}
+    </div></div>`;
+  }).join('');
+}
+function readContacts(fd){
+  const out = {};
+  CONTACT_GROUPS.forEach(g=>{
+    const v = {};
+    g.fields.forEach(([f])=>{ const x = String(fd.get(`ct_${g.key}_${f}`)||'').trim(); if(x) v[f] = x; });
+    if(Object.keys(v).length) out[g.key] = v;
+  });
+  return out;
+}
+function contactLine(field, value){
+  if(!value) return '';
+  if(field.startsWith('phone')) return `<a href="tel:${esc(value.replace(/[^\d+]/g,''))}">${esc(value)}</a>`;
+  if(field==='email') return `<a href="mailto:${esc(value)}">${esc(value)}</a>`;
+  return esc(value);
+}
+// One person's details as short lines: name first, then designation/department, phones and email.
+function contactSummary(group, v){
+  if(!v || !Object.keys(v).length) return '<span class="contact-missing">Not added</span>';
+  const lines = [];
+  if(v.name) lines.push(`<strong>${esc(v.name)}</strong>`);
+  if(v.designation) lines.push(esc(v.designation));
+  if(v.department) lines.push(esc(v.department));
+  if(v.phoneOffice) lines.push('Office: ' + contactLine('phoneOffice', v.phoneOffice));
+  if(v.phonePersonal) lines.push('Personal: ' + contactLine('phonePersonal', v.phonePersonal));
+  if(v.email) lines.push(contactLine('email', v.email));
+  return lines.join('<br>');
+}
+function cityContactsCard(city){
+  const c = city.contacts || {};
+  return `<div class="card">
+    <div class="section-title">Contact Details <span class="hint">Mayor, Commissioner and SDMA · edit under Data Entry › Contact Details${isMaster()?' or from the dashboard':''}</span></div>
+    <div class="contact-grid">${CONTACT_GROUPS.map(g=>`<div class="contact-box"><div class="contact-form-title">${g.label}</div><div class="contact-body">${contactSummary(g.key, c[g.key])}</div></div>`).join('')}</div>
+  </div>`;
+}
+let contactsPhaseFilter = 0; // 0 = all phases (dashboard directory only)
+let contactsEditingId = null;  // city whose contacts are open for editing in the directory
+// The directory lives in #contactsHost on the dashboard (all cities, phase filter) and on a phase page (that phase only).
+function renderContactsHost(){
+  const host = document.getElementById('contactsHost');
+  if(!host) return;
+  const onPhasePage = ROUTE.page==='phase';
+  let cities = onPhasePage ? DB.cityProgrammes.filter(c=>c.phase===ROUTE.phase) : DB.cityProgrammes;
+  if(!onPhasePage && contactsPhaseFilter) cities = cities.filter(c=>c.phase===contactsPhaseFilter);
+  const filter = onPhasePage ? '' : `<select onchange="setContactsPhaseFilter(this.value)" style="padding:7px 10px;border-radius:7px;border:1px solid #2A4A4D;background:#0F2A2D;color:#EAF3F1;font-size:12.5px;margin-left:auto;">
+      <option value="0">All phases</option>${PHASES.map(p=>`<option value="${p}" ${p===contactsPhaseFilter?'selected':''}>Phase ${p}</option>`).join('')}</select>`;
+  const title = onPhasePage ? `Phase ${ROUTE.phase} City Contacts` : 'City Contacts';
+  const editing = getCity(contactsEditingId);
+  const rows = cities.map(c=>{
+    const ct = c.contacts || {};
+    return `<tr>
+      <td><span class="city-chip" style="width:auto;display:inline-block;cursor:pointer;" onclick="gotoCity('${c.id}')">${esc(c.cityName)}</span><div class="contact-phase">${phasePill(c.phase)}</div></td>
+      ${CONTACT_GROUPS.map(g=>`<td class="contact-cell">${contactSummary(g.key, ct[g.key])}</td>`).join('')}
+      <td><button class="btn" style="padding:5px 10px;font-size:11.5px;" onclick="editCityContacts('${c.id}')">Edit</button></td>
+    </tr>`;
+  }).join('');
+  host.innerHTML = `<div class="card">
+    <div class="section-title">${title} <span class="hint">Mayor, Commissioner and SDMA contacts for each city programme · edits show on the city's own page</span>${filter}</div>
+    ${editing ? `
+    <form id="fDirContacts" class="contact-edit">
+      <div class="section-title">Editing contacts for ${esc(editing.cityName)} ${phasePill(editing.phase)}</div>
+      ${contactFieldsHtml(editing.contacts)}
+      <div class="form-actions"><button class="btn" type="submit">Save Contact Details</button> <button class="btn" type="button" onclick="editCityContacts(null)" style="background:#3B5C5F;">Cancel</button></div>
+    </form>` : ''}
+    <div style="overflow-x:auto;"><table><thead><tr><th>City</th>${CONTACT_GROUPS.map(g=>`<th>${g.label}</th>`).join('')}<th></th></tr></thead>
+    <tbody>${rows || `<tr><td colspan="${CONTACT_GROUPS.length+2}" class="empty">No cities yet.</td></tr>`}</tbody></table></div>
+  </div>`;
+  const f = document.getElementById('fDirContacts');
+  if(f) f.addEventListener('submit', async e=>{
+    e.preventDefault();
+    editing.contacts = readContacts(new FormData(e.target));
+    const ok = await saveArr('cityProgrammes', DB.cityProgrammes);
+    if(ok) contactsEditingId = null;
+    renderContactsHost();
+    showMsg(ok ? `Contact details saved for ${editing.cityName}.` : 'Could not save — try again.', ok);
+  });
+}
+function setContactsPhaseFilter(v){ contactsPhaseFilter = Number(v)||0; renderContactsHost(); }
+function editCityContacts(cityId){
+  contactsEditingId = cityId;
+  renderContactsHost();
+  const f = document.getElementById('fDirContacts');
+  if(f && f.scrollIntoView) f.scrollIntoView({behavior:'smooth', block:'start'});
+}
+window.setContactsPhaseFilter = setContactsPhaseFilter;
+window.editCityContacts = editCityContacts;
 let dashboardPhaseSelected = 1;
 let showAddCityForm = false;
+function phaseSection(phase){
+  const cities = DB.cityProgrammes.filter(c=>c.phase===phase);
+  const phaseTotal = cities.reduce((s,c)=>s+Number(c.ndmfShareCr||0),0);
+  const hasUnknown = cities.some(c=>c.ndmfShareCr===null||c.ndmfShareCr===undefined);
+  const rows = cities.map(c=>{
+    const f = cityFinancial(c.id);
+    const appr = cityApprovalPct(c.id);
+    return `<tr class="clickable" onclick="gotoCity('${c.id}')">
+      <td><span class="city-chip" style="width:auto;display:inline-block;">${esc(c.cityName)}</span></td>
+      <td class="num">${fmtCr(c.ndmfShareCr)}</td>
+      <td class="num">${f.compCount}</td>
+      <td class="num">${f.avgPhysical.toFixed(0)}%</td>
+      <td class="num">${appr.toFixed(0)}%</td>
+    </tr>`;
+  }).join('');
+  return `
+  <div class="card">
+    <div class="section-title">${phasePill(phase)} <span style="font-weight:600;">${cities.length} cit${cities.length===1?'y':'ies'}</span>
+      <span class="hint">Total NDMF Share: ${phaseTotal? fmtCr(phaseTotal) : '—'}${hasUnknown? ' (some shares TBD)':''}</span>
+    </div>
+    <table><thead><tr><th>City</th><th class="num">NDMF Share</th><th class="num">Projects</th><th class="num">Physical %</th><th class="num">Approval %</th></tr></thead>
+    <tbody>${rows || `<tr><td colspan="5" class="empty">No Phase ${phase} cities yet.</td></tr>`}</tbody></table>
+  </div>`;
+}
+
+function phaseOverview(phase){
+  const cities = DB.cityProgrammes.filter(c=>c.phase===phase);
+  const phaseNdmf = cities.reduce((s,c)=>s+Number(c.ndmfShareCr||0),0);
+  const hasUnknown = cities.some(c=>c.ndmfShareCr===null||c.ndmfShareCr===undefined);
+  let phaseBudget=0, physSum2=0, physN2=0, apprSum=0;
+  cities.forEach(c=>{
+    const f = cityFinancial(c.id);
+    phaseBudget += f.sanctioned;
+    if(f.workCount){ physSum2 += f.avgPhysical; physN2++; }
+    apprSum += cityApprovalPct(c.id);
+  });
+  const avgPhys = physN2 ? physSum2/physN2 : 0;
+  const avgAppr = cities.length ? apprSum/cities.length : 0;
+  const cls = PHASE_CLASS[phase];
+  return `
+  <div class="phase-card phase-card-${cls}" onclick="selectDashboardPhase(${phase})">
+    <div class="phase-card-head">${phasePill(phase)}<span class="phase-card-count">${cities.length} cit${cities.length===1?'y':'ies'}</span></div>
+    <div class="phase-card-stats">
+      <div><div class="phase-card-val">${phaseNdmf? fmtCr(phaseNdmf):'—'}${hasUnknown?'*':''}</div><div class="phase-card-lbl">NDMF Share</div></div>
+      <div><div class="phase-card-val">${fmtMoney(phaseBudget)}</div><div class="phase-card-lbl">Component Budget</div></div>
+      <div><div class="phase-card-val">${avgPhys.toFixed(0)}%</div><div class="phase-card-lbl">Avg Physical</div></div>
+      <div><div class="phase-card-val">${avgAppr.toFixed(0)}%</div><div class="phase-card-lbl">Avg Approval</div></div>
+    </div>
+    ${hasUnknown? `<div class="phase-card-note">*some NDMF shares still TBD</div>` : ''}
+  </div>`;
+}
+
+// Add City / Programme form, shared by the dashboard and the Phase 4 page.
+// fixedPhase pins the phase (the Phase 4 page only adds Phase 4 cities).
+function addCityFormHtml(fixedPhase){
+  return `
+      <form id="fAddCity">
+        <div class="grid2">
+          <div class="field"><label>City Name</label><input required type="text" name="cityName" placeholder="e.g. Nagpur"></div>
+          <div class="field"><label>Phase</label>${fixedPhase
+            ? `<input disabled value="Phase ${fixedPhase}"><input type="hidden" name="phase" value="${fixedPhase}">`
+            : `<select name="phase">${phaseOptions(1)}</select>`}</div>
+        </div>
+        <div class="grid2">
+          <div class="field"><label>Latitude</label><input required type="number" step="0.0001" name="lat" placeholder="e.g. 21.1458"></div>
+          <div class="field"><label>Longitude</label><input required type="number" step="0.0001" name="lng" placeholder="e.g. 79.0882"></div>
+        </div>
+        <div class="grid2">
+          <div class="field"><label>NDMF Share (₹ Cr)</label><input type="number" step="0.01" name="ndmfShareCr"></div>
+          <div class="field"><label>State Share (₹ Cr)</label><input type="number" step="0.01" name="stateShareCr"></div>
+        </div>
+        <div class="grid2">
+          <div class="field"><label>Approved Projects Amount (₹ Cr)</label><input type="number" step="0.01" name="approvedProjectsAmountCr"></div>
+          <div class="field"><label>NDRF Share (₹ Cr)</label><input type="number" step="0.01" name="ndrfShareCr"></div>
+        </div>
+        <div class="section-title" style="margin-top:14px;">Contact Details <span class="hint">optional, can be added later from the city's Data Entry tab</span></div>
+        ${contactFieldsHtml({})}
+        <div class="form-actions"><button class="btn" type="submit">Add City / Programme</button></div>
+      </form>`;
+}
+function bindAddCityForm(){
+  const fAddCity = document.getElementById('fAddCity');
+  if(fAddCity){
+    fAddCity.addEventListener('submit', async e=>{
+      e.preventDefault(); const fd = new FormData(e.target);
+      const cityName = (fd.get('cityName')||'').trim();
+      const phase = Number(fd.get('phase'))||1;
+      if(!cityName){ return; }
+      let slug = cityName.toLowerCase().replace(/[^a-z]/g,'') + '-p' + phase;
+      let id = slug, n = 2;
+      while(DB.cityProgrammes.find(c=>c.id===id)){ id = slug + '-' + n; n++; }
+      const city = {
+        id, cityName, phase,
+        ndmfShareCr: fd.get('ndmfShareCr')===''?null:Number(fd.get('ndmfShareCr')),
+        stateShareCr: fd.get('stateShareCr')===''?null:Number(fd.get('stateShareCr')),
+        approvedProjectsAmountCr: fd.get('approvedProjectsAmountCr')===''?null:Number(fd.get('approvedProjectsAmountCr')),
+        ndrfShareCr: fd.get('ndrfShareCr')===''?null:Number(fd.get('ndrfShareCr')),
+        lat: Number(fd.get('lat')), lng: Number(fd.get('lng')),
+        contacts: readContacts(fd)
+      };
+      DB.cityProgrammes.push(city);
+      const ok = await saveArr('cityProgrammes', DB.cityProgrammes);
+      if(ok){ showAddCityForm = false; gotoCity(id); }
+    });
+  }
+}
 function renderDashboard(){
   buildSidebarCityList();
   const main = document.getElementById('main');
@@ -1405,58 +1659,6 @@ function renderDashboard(){
   });
   const totalNdmf = DB.cityProgrammes.reduce((s,c)=>s+Number(c.ndmfShareCr||0),0);
   const uniqueCityCount = new Set(DB.cityProgrammes.map(c=>c.cityName)).size;
-
-  function phaseSection(phase){
-    const cities = DB.cityProgrammes.filter(c=>c.phase===phase);
-    const phaseTotal = cities.reduce((s,c)=>s+Number(c.ndmfShareCr||0),0);
-    const hasUnknown = cities.some(c=>c.ndmfShareCr===null||c.ndmfShareCr===undefined);
-    const rows = cities.map(c=>{
-      const f = cityFinancial(c.id);
-      const appr = cityApprovalPct(c.id);
-      return `<tr class="clickable" onclick="gotoCity('${c.id}')">
-        <td><span class="city-chip" style="width:auto;display:inline-block;">${esc(c.cityName)}</span></td>
-        <td class="num">${fmtCr(c.ndmfShareCr)}</td>
-        <td class="num">${f.compCount}</td>
-        <td class="num">${f.avgPhysical.toFixed(0)}%</td>
-        <td class="num">${appr.toFixed(0)}%</td>
-      </tr>`;
-    }).join('');
-    return `
-    <div class="card">
-      <div class="section-title">${phasePill(phase)} <span style="font-weight:600;">${cities.length} cit${cities.length===1?'y':'ies'}</span>
-        <span class="hint">Total NDMF Share: ${phaseTotal? fmtCr(phaseTotal) : '—'}${hasUnknown? ' (some shares TBD)':''}</span>
-      </div>
-      <table><thead><tr><th>City</th><th class="num">NDMF Share</th><th class="num">Projects</th><th class="num">Physical %</th><th class="num">Approval %</th></tr></thead>
-      <tbody>${rows}</tbody></table>
-    </div>`;
-  }
-
-  function phaseOverview(phase){
-    const cities = DB.cityProgrammes.filter(c=>c.phase===phase);
-    const phaseNdmf = cities.reduce((s,c)=>s+Number(c.ndmfShareCr||0),0);
-    const hasUnknown = cities.some(c=>c.ndmfShareCr===null||c.ndmfShareCr===undefined);
-    let phaseBudget=0, physSum2=0, physN2=0, apprSum=0;
-    cities.forEach(c=>{
-      const f = cityFinancial(c.id);
-      phaseBudget += f.sanctioned;
-      if(f.workCount){ physSum2 += f.avgPhysical; physN2++; }
-      apprSum += cityApprovalPct(c.id);
-    });
-    const avgPhys = physN2 ? physSum2/physN2 : 0;
-    const avgAppr = cities.length ? apprSum/cities.length : 0;
-    const cls = PHASE_CLASS[phase];
-    return `
-    <div class="phase-card phase-card-${cls}" onclick="selectDashboardPhase(${phase})">
-      <div class="phase-card-head">${phasePill(phase)}<span class="phase-card-count">${cities.length} cit${cities.length===1?'y':'ies'}</span></div>
-      <div class="phase-card-stats">
-        <div><div class="phase-card-val">${phaseNdmf? fmtCr(phaseNdmf):'—'}${hasUnknown?'*':''}</div><div class="phase-card-lbl">NDMF Share</div></div>
-        <div><div class="phase-card-val">${fmtMoney(phaseBudget)}</div><div class="phase-card-lbl">Component Budget</div></div>
-        <div><div class="phase-card-val">${avgPhys.toFixed(0)}%</div><div class="phase-card-lbl">Avg Physical</div></div>
-        <div><div class="phase-card-val">${avgAppr.toFixed(0)}%</div><div class="phase-card-lbl">Avg Approval</div></div>
-      </div>
-      ${hasUnknown? `<div class="phase-card-note">*some NDMF shares still TBD</div>` : ''}
-    </div>`;
-  }
 
   main.innerHTML = `
     <div class="dash-dark">
@@ -1476,33 +1678,12 @@ function renderDashboard(){
       <div class="section-title">Cities & Programmes <span class="hint">add a new city/programme to track it across the dashboard, map, and its own data-entry page</span>
         <button class="btn" id="toggleAddCityBtn" style="margin-left:10px;padding:6px 12px;font-size:12px;">${showAddCityForm ? 'Cancel' : '+ Add City / Programme'}</button>
       </div>
-      ${showAddCityForm ? `
-      <form id="fAddCity">
-        <div class="grid2">
-          <div class="field"><label>City Name</label><input required type="text" name="cityName" placeholder="e.g. Nagpur"></div>
-          <div class="field"><label>Phase</label><select name="phase"><option value="1">Phase 1</option><option value="2">Phase 2</option><option value="3">Phase 3</option></select></div>
-        </div>
-        <div class="grid2">
-          <div class="field"><label>Latitude</label><input required type="number" step="0.0001" name="lat" placeholder="e.g. 21.1458"></div>
-          <div class="field"><label>Longitude</label><input required type="number" step="0.0001" name="lng" placeholder="e.g. 79.0882"></div>
-        </div>
-        <div class="grid2">
-          <div class="field"><label>NDMF Share (₹ Cr)</label><input type="number" step="0.01" name="ndmfShareCr"></div>
-          <div class="field"><label>State Share (₹ Cr)</label><input type="number" step="0.01" name="stateShareCr"></div>
-        </div>
-        <div class="grid2">
-          <div class="field"><label>Approved Projects Amount (₹ Cr)</label><input type="number" step="0.01" name="approvedProjectsAmountCr"></div>
-          <div class="field"><label>NDRF Share (₹ Cr)</label><input type="number" step="0.01" name="ndrfShareCr"></div>
-        </div>
-        <div class="form-actions"><button class="btn" type="submit">Add City / Programme</button></div>
-      </form>` : ''}
+      ${showAddCityForm ? addCityFormHtml() : ''}
     </div>
     <div class="card">
-      <div class="section-title">Programme Overview by Phase <span class="hint">each phase runs its own city set and funding envelope — click a card to jump to its city list below. Ahmedabad and Mumbai appear under both Phase 1 and Phase 3, so phase counts don't sum to the total number of distinct cities.</span></div>
+      <div class="section-title">Programme Overview by Phase <span class="hint">each phase runs its own city set and funding envelope — click a card to jump to its city list below. A city can run under more than one phase (Ahmedabad and Mumbai are in Phase 1 and Phase 3), so phase counts don't sum to the total number of distinct cities.</span></div>
       <div class="phase-overview-grid">
-        ${phaseOverview(1)}
-        ${phaseOverview(2)}
-        ${phaseOverview(3)}
+        ${PHASES.map(phaseOverview).join('')}
       </div>
     </div>
     <div class="card">
@@ -1511,9 +1692,7 @@ function renderDashboard(){
         <div class="map-svg-wrap">
           ${renderMapSvg()}
           <div class="map-legend">
-            <span><span class="legend-dot" style="background:var(--p1)"></span>Phase 1</span>
-            <span><span class="legend-dot" style="background:var(--p2)"></span>Phase 2</span>
-            <span><span class="legend-dot" style="background:var(--p3)"></span>Phase 3</span>
+            ${PHASES.map(p=>`<span><span class="legend-dot" style="background:${phaseColor(p)}"></span>Phase ${p}</span>`).join('')}
           </div>
           <div class="map-note">Country and state outlines from Survey of India boundary data (simplified for display); city positions are approximate.</div>
         </div>
@@ -1522,17 +1701,17 @@ function renderDashboard(){
     <div class="card" id="phaseTableCard">
       <div class="section-title">Cities by Phase
         <select id="phaseSelect" style="padding:7px 10px;border-radius:7px;border:1px solid #2A4A4D;background:#0F2A2D;color:#EAF3F1;font-size:12.5px;">
-          <option value="1" ${dashboardPhaseSelected===1?'selected':''}>Phase 1</option>
-          <option value="2" ${dashboardPhaseSelected===2?'selected':''}>Phase 2</option>
-          <option value="3" ${dashboardPhaseSelected===3?'selected':''}>Phase 3</option>
+          ${phaseOptions(dashboardPhaseSelected)}
         </select>
       </div>
       <div id="phaseTableHost"></div>
     </div>
+    <div id="contactsHost"></div>
     </div>
   `;
   const phaseHost = document.getElementById('phaseTableHost');
   phaseHost.innerHTML = phaseSection(dashboardPhaseSelected);
+  renderContactsHost();
   document.getElementById('phaseSelect').addEventListener('change', e=>{
     dashboardPhaseSelected = Number(e.target.value);
     phaseHost.innerHTML = phaseSection(dashboardPhaseSelected);
@@ -1541,30 +1720,78 @@ function renderDashboard(){
     showAddCityForm = !showAddCityForm;
     renderDashboard();
   });
-  const fAddCity = document.getElementById('fAddCity');
-  if(fAddCity){
-    fAddCity.addEventListener('submit', async e=>{
-      e.preventDefault(); const fd = new FormData(e.target);
-      const cityName = (fd.get('cityName')||'').trim();
-      const phase = Number(fd.get('phase'))||1;
-      if(!cityName){ return; }
-      let slug = cityName.toLowerCase().replace(/[^a-z]/g,'') + '-p' + phase;
-      let id = slug, n = 2;
-      while(DB.cityProgrammes.find(c=>c.id===id)){ id = slug + '-' + n; n++; }
-      const city = {
-        id, cityName, phase,
-        ndmfShareCr: fd.get('ndmfShareCr')===''?null:Number(fd.get('ndmfShareCr')),
-        stateShareCr: fd.get('stateShareCr')===''?null:Number(fd.get('stateShareCr')),
-        approvedProjectsAmountCr: fd.get('approvedProjectsAmountCr')===''?null:Number(fd.get('approvedProjectsAmountCr')),
-        ndrfShareCr: fd.get('ndrfShareCr')===''?null:Number(fd.get('ndrfShareCr')),
-        lat: Number(fd.get('lat')), lng: Number(fd.get('lng'))
-      };
-      DB.cityProgrammes.push(city);
-      const ok = await saveArr('cityProgrammes', DB.cityProgrammes);
-      if(ok){ showAddCityForm = false; gotoCity(id); }
-    });
-  }
+  bindAddCityForm();
 }
+/* ---------------------------------------------------------------
+   RENDER: PHASE PAGE (one phase's cities, totals and map)
+--------------------------------------------------------------- */
+function gotoPhase(phase){
+  ROUTE = { page:'phase', phase, cityId:null, cityTab:'overview', componentId:null, dprId:null, workId:null };
+  showAddCityForm = false;
+  render();
+}
+window.gotoPhase = gotoPhase;
+function renderPhasePage(phase){
+  buildSidebarCityList();
+  const main = document.getElementById('main');
+  const cities = DB.cityProgrammes.filter(c=>c.phase===phase);
+  const ids = new Set(cities.map(c=>c.id));
+  const works = DB.works.filter(w=>ids.has(workCityId(w)));
+  let budget=0, util=0, physSum=0, drainAch=0, drainPlan=0, benefDirect=0, benefIndirect=0, apprSum=0;
+  cities.forEach(c=>{ budget += cityFinancial(c.id).sanctioned; apprSum += cityApprovalPct(c.id); });
+  works.forEach(w=>{
+    util += (Number(w.financialProgressPct||0)/100)*Number(w.tenderAwardAmount||w.dprAmount||0);
+    physSum += Number(w.physicalProgressPct||0);
+    drainAch += Number(w.drainLengthAchieved||0); drainPlan += Number(w.drainLengthPlanned||0);
+    benefDirect += Number(w.beneficiariesDirect||0); benefIndirect += Number(w.beneficiariesIndirect||0);
+  });
+  const ndmf = cities.reduce((s,c)=>s+Number(c.ndmfShareCr||0),0);
+  const hasUnknown = cities.some(c=>c.ndmfShareCr===null||c.ndmfShareCr===undefined);
+  const pct = PHASE_NDMF_PCT[phase] || 90;
+  main.innerHTML = `
+    <div class="dash-dark">
+    <div class="crumb"><span onclick="gotoDashboard()">All Cities</span> / Phase ${phase}</div>
+    <div class="page-head">
+      <div><h1>Phase ${phase} ${phasePill(phase)}</h1><p>UFRMP Phase ${phase} city programmes funded under the NDMF · ${pct}:${100-pct} NDMF-to-State funding split</p></div>
+    </div>
+    ${renderUnitToggle()}
+    <div class="kpi-row">
+      <div class="kpi"><div class="label">Phase ${phase} NDMF Allocation</div><div class="value">${ndmf? fmtCr(ndmf) : '—'}${hasUnknown?'*':''}</div><div class="sub">across ${cities.length} cit${cities.length===1?'y':'ies'}${hasUnknown?' · *some shares TBD':''}</div></div>
+      <div class="kpi"><div class="label">Approved Component Budget</div><div class="value">${fmtMoney(budget)}</div><div class="sub">from components added so far</div></div>
+      <div class="kpi"><div class="label">Utilized (est.)</div><div class="value">${fmtMoney(util)}</div></div>
+      <div class="kpi"><div class="label">Avg. Physical Progress</div><div class="value">${(works.length?physSum/works.length:0).toFixed(1)}%</div><div class="sub">${works.length} work${works.length===1?'':'s'} · avg approval ${(cities.length?apprSum/cities.length:0).toFixed(0)}%</div></div>
+      <div class="kpi"><div class="label">Storm Water Drain</div><div class="value">${drainAch.toLocaleString()} m</div><div class="sub">of ${drainPlan.toLocaleString()} m planned</div></div>
+      <div class="kpi"><div class="label">Beneficiaries</div><div class="value">${(benefDirect+benefIndirect).toLocaleString()}</div><div class="sub">${benefDirect.toLocaleString()} direct · ${benefIndirect.toLocaleString()} indirect</div></div>
+    </div>
+    <div class="card">
+      <div class="section-title">Phase ${phase} Cities <span class="hint">each city gets its own page with Components & DPRs, Implementation Gantt, Budget Matrix, Approval Timeline, M&E and Data Entry</span>
+        <button class="btn" id="toggleAddCityBtn" style="margin-left:10px;padding:6px 12px;font-size:12px;">${showAddCityForm ? 'Cancel' : '+ Add Phase ' + phase + ' City'}</button>
+      </div>
+      ${showAddCityForm ? addCityFormHtml(phase) : ''}
+      ${(cities.length || showAddCityForm) ? '' : `<div class="empty">No Phase ${phase} cities yet. Add the first one with the button above.</div>`}
+    </div>
+    ${cities.length ? `
+    <div class="card">
+      <div class="section-title">Phase ${phase} Cities on the Map <span class="hint">click a dot or a row below to open that city's page</span></div>
+      <div class="map-wrap">
+        <div class="map-svg-wrap">
+          ${renderMapSvg(cities)}
+          <div class="map-note">Country and state outlines from Survey of India boundary data (simplified for display); city positions are approximate.</div>
+        </div>
+      </div>
+    </div>
+    ${phaseSection(phase)}
+    <div id="contactsHost"></div>` : ''}
+    </div>
+  `;
+  renderContactsHost();
+  document.getElementById('toggleAddCityBtn').addEventListener('click', ()=>{
+    showAddCityForm = !showAddCityForm;
+    render();
+  });
+  bindAddCityForm();
+}
+
 function selectDashboardPhase(phase){
   dashboardPhaseSelected = phase;
   renderDashboard();
@@ -1577,6 +1804,7 @@ function printCurrentPage(){
   const sub = document.getElementById('printHeaderSub');
   const dateStr = new Date().toLocaleDateString('en-IN', {year:'numeric', month:'long', day:'numeric'});
   let label = 'National Programme Dashboard';
+  if(ROUTE.page==='phase') label = 'Phase ' + ROUTE.phase + ' Programme';
   if(ROUTE.page==='city'){
     const city = getCity(ROUTE.cityId);
     const tabLabels = {overview:'Overview', components:'Components & DPRs', gantt:'Implementation Gantt', budgetmatrix:'Budget Matrix', timeline:'Approval Timeline', me:'Monitoring & Evaluation', entry:'Data Entry'};
@@ -1616,6 +1844,32 @@ function exportLiveDataToXLSX(){
     'Approved Project Amount (Cr)': c.approvedProjectsAmountCr,
     'Latitude': c.lat, 'Longitude': c.lng
   })));
+
+  const contactRows = [];
+  (DB.cityProgrammes||[]).forEach(c=>CONTACT_GROUPS.forEach(g=>{
+    const v = (c.contacts||{})[g.key] || {};
+    contactRows.push({
+      'City Programme ID': c.id, 'City': c.cityName, 'Phase': c.phase, 'Contact': g.label,
+      'Name': v.name||'', 'Designation': v.designation||'', 'Concerned Department': v.department||'',
+      'Phone (Office)': v.phoneOffice||'', 'Phone (Personal)': v.phonePersonal||'', 'Email ID': v.email||''
+    });
+  }));
+  addSheet('City Contacts', contactRows);
+
+  addSheet('Phase Summary', PHASES.map(phase=>{
+    const cities = (DB.cityProgrammes||[]).filter(c=>c.phase===phase);
+    const ids = new Set(cities.map(c=>c.id));
+    const works = (DB.works||[]).filter(w=>ids.has(workCityId(w)));
+    return {
+      'Phase': phase, 'City Programmes': cities.length,
+      'Cities': cities.map(c=>c.cityName).join(', '),
+      'NDMF Share (Cr)': cities.reduce((s,c)=>s+Number(c.ndmfShareCr||0),0),
+      'NDMF:State Split': `${PHASE_NDMF_PCT[phase]}:${100-PHASE_NDMF_PCT[phase]}`,
+      'Approved Component Budget (INR)': cities.reduce((s,c)=>s+cityFinancial(c.id).sanctioned,0),
+      'Works': works.length,
+      'Avg Physical Progress (%)': works.length ? Number((works.reduce((s,w)=>s+Number(w.physicalProgressPct||0),0)/works.length).toFixed(1)) : 0
+    };
+  }));
 
   addSheet('Components', (DB.components||[]).map(c=>({
     'Component ID': c.id, 'City Programme ID': c.cityProgrammeId, 'Component Name': c.name,
@@ -1758,7 +2012,7 @@ function renderCityOverview(city){
     ${renderUnitToggle()}
     <div class="kpi-row">
       <div class="kpi"><div class="label">NDMF Share</div><div class="value">${fmtCr(city.ndmfShareCr)}</div></div>
-      <div class="kpi"><div class="label">State Share (10%)</div><div class="value">${fmtCr(city.stateShareCr)}</div></div>
+      <div class="kpi"><div class="label">State Share (${100-(PHASE_NDMF_PCT[city.phase]||90)}%)</div><div class="value">${fmtCr(city.stateShareCr)}</div></div>
       <div class="kpi"><div class="label">NDRF Share</div><div class="value">${fmtCr(city.ndrfShareCr)}</div></div>
       <div class="kpi"><div class="label">Approved Projects Amount</div><div class="value">${fmtCr(city.approvedProjectsAmountCr)}</div></div>
       <div class="kpi"><div class="label">Approved Component Budget</div><div class="value">${fmtMoney(f.sanctioned)}</div></div>
@@ -1772,6 +2026,7 @@ function renderCityOverview(city){
         <div style="width:190px;">${renderCityStateMap(city)}</div>
       </div>
     </div>
+    ${cityContactsCard(city)}
     <div class="card"><div class="section-title">Projects</div>${compRows}</div>
     <div class="card">
       <div class="section-title">Project Briefs<span class="hint">summarised from the city's executive summary / DPR documents</span></div>
@@ -2194,7 +2449,7 @@ function renderCityTimelineDetail(city, host){
 /* ---- Data Entry (scoped to a city) ---- */
 let cityEntryTab = 'component';
 function renderCityEntry(city, host){
-  const tabs = [['component','Add Project'],['dpr','Add DPR'],['work','Add Component'],['progress','Update Progress'],['gantt','Implementation Gantt'],['budgetmatrix','Budget Matrix'],['photos','Upload Photos'],['timeline','Approval Timeline'],['me','Monitoring & Evaluation'],['programme','Edit City Programme']];
+  const tabs = [['component','Add Project'],['dpr','Add DPR'],['work','Add Component'],['progress','Update Progress'],['gantt','Implementation Gantt'],['budgetmatrix','Budget Matrix'],['photos','Upload Photos'],['timeline','Approval Timeline'],['me','Monitoring & Evaluation'],['programme','Edit City Programme'],['contacts','Contact Details']];
   host.innerHTML = `
     <div class="form-tabs">${tabs.map(([k,l])=>`<button data-etab="${k}" class="${cityEntryTab===k?'active':''}">${l}</button>`).join('')}</div>
     <div id="msgBox" class="msg"></div>
@@ -2707,12 +2962,11 @@ function renderCityEntry(city, host){
   }
 
   if(cityEntryTab==='programme'){
-    const isP3 = city.phase===3;
-    const stateRatioLabel = isP3 ? '40% of total (60:40 NDMF:State)' : '10% of total (90:10 NDMF:State)';
+    const ndmfPct = PHASE_NDMF_PCT[city.phase] || 90, statePct = 100 - ndmfPct;
+    const stateRatioLabel = `${statePct}% of total (${ndmfPct}:${statePct} NDMF:State)`;
     function deriveStateShare(ndmf){
       if(ndmf===null||ndmf===undefined||ndmf==='') return null;
-      const n = Number(ndmf);
-      return isP3 ? (n*(40/60)) : (n/9);
+      return Number(ndmf) * statePct / ndmfPct;
     }
     const autoStateShare = deriveStateShare(city.ndmfShareCr);
     fh.innerHTML = `
@@ -2727,7 +2981,7 @@ function renderCityEntry(city, host){
         <div class="field"><label>Approved Projects Amount (₹ Crore)</label><input type="number" step="0.01" name="approvedProjectsAmountCr" value="${city.approvedProjectsAmountCr!==null&&city.approvedProjectsAmountCr!==undefined?city.approvedProjectsAmountCr:''}" placeholder="Total value of approved projects"></div>
         <div class="field"><label>NDRF Share (₹ Crore)</label><input type="number" step="0.01" name="ndrfShareCr" value="${city.ndrfShareCr!==null&&city.ndrfShareCr!==undefined?city.ndrfShareCr:''}" placeholder="National Disaster Response Fund share"></div>
       </div>
-      <p style="font-size:12px;color:var(--muted);">${isP3? 'Phase 3 uses a 60:40 NDMF-to-State funding split, unlike the 90:10 split in Phase 1 and 2.' : 'Phase 1 and 2 use a 90:10 NDMF-to-State funding split.'} State Share auto-fills as a suggestion when you update NDMF Share, but you can override it. Approved Projects Amount and NDRF Share are entered independently.</p>
+      <p style="font-size:12px;color:var(--muted);">Phase 1 and 2 use a 90:10 NDMF-to-State funding split; Phase 3 and 4 use 60:40. This city is in Phase ${city.phase} (${ndmfPct}:${statePct}). State Share auto-fills as a suggestion when you update NDMF Share, but you can override it. Approved Projects Amount and NDRF Share are entered independently.</p>
       <div class="form-actions"><button class="btn" type="submit">Save Programme Figures</button></div>
     </form>`;
     const pgNdmf = document.getElementById('pgNdmf'), pgState = document.getElementById('pgState');
@@ -2743,6 +2997,21 @@ function renderCityEntry(city, host){
       const ok = await saveArr('cityProgrammes', DB.cityProgrammes);
       if(ok) render();
       showMsg(ok?'Programme figures updated.':'Could not save — try again.', ok);
+    });
+  }
+
+  if(cityEntryTab==='contacts'){
+    fh.innerHTML = `
+    <form id="fContacts">
+      ${contactFieldsHtml(city.contacts)}
+      <div class="form-actions"><button class="btn" type="submit">Save Contact Details</button></div>
+    </form>`;
+    document.getElementById('fContacts').addEventListener('submit', async e=>{
+      e.preventDefault();
+      city.contacts = readContacts(new FormData(e.target));
+      const ok = await saveArr('cityProgrammes', DB.cityProgrammes);
+      if(ok) render();
+      showMsg(ok?'Contact details saved.':'Could not save — try again.', ok);
     });
   }
 }
@@ -2894,6 +3163,7 @@ async function deleteUserLogin(userId){
 window.editUser = editUser;
 window.saveUserEdit = saveUserEdit;
 window.deleteUserLogin = deleteUserLogin;
+document.querySelector('[data-nav="phase4"]').addEventListener('click', ()=>gotoPhase(4));
 document.querySelector('[data-nav="users"]').addEventListener('click', ()=>{
   ROUTE = { page:'users', cityId:null, cityTab:'overview', componentId:null, dprId:null, workId:null };
   usersEditingId = null;
@@ -2964,6 +3234,7 @@ function applyUserChrome(){
   box.style.display = '';
   document.querySelector('[data-nav="users"]').style.display = isMaster() ? '' : 'none';
   document.querySelector('[data-nav="dashboard"]').style.display = isMaster() ? '' : 'none';
+  document.querySelector('[data-nav="phase4"]').style.display = isMaster() ? '' : 'none';
   const sub = document.querySelector('.brand-sub');
   if(sub) sub.textContent = isMaster() ? 'UFRMP · ALL CITIES' : 'UFRMP · ' + (city ? city.cityName.toUpperCase() : 'CITY');
 }
@@ -3008,7 +3279,9 @@ function render(){
   }
   document.querySelector('[data-nav="dashboard"]').classList.toggle('active', ROUTE.page==='dashboard');
   document.querySelector('[data-nav="users"]').classList.toggle('active', ROUTE.page==='users');
+  document.querySelector('[data-nav="phase4"]').classList.toggle('active', ROUTE.page==='phase' && ROUTE.phase===4);
   if(ROUTE.page==='dashboard') renderDashboard();
+  else if(ROUTE.page==='phase') renderPhasePage(ROUTE.phase);
   else if(ROUTE.page==='city') renderCity();
   else if(ROUTE.page==='users') renderUsers();
 }
