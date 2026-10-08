@@ -1445,9 +1445,9 @@ const COMMISSIONER_CONTACT_FIELDS = [['name','Name'],['designation','Designation
 const CONTACT_GROUPS = [
   {key:'mayor', label:'Mayor', fields:[['name','Name'], ...PHONE_EMAIL_FIELDS, ['department','Concerned Department']]},
   {key:'commissioner', label:'Commissioner', fields:[['name','Name'], ...PHONE_EMAIL_FIELDS]},
-  {key:'commissioner1', label:'Commissioner · 1st Contact', fields:COMMISSIONER_CONTACT_FIELDS},
-  {key:'commissioner2', label:'Commissioner · 2nd Contact', fields:COMMISSIONER_CONTACT_FIELDS},
-  {key:'sdma', label:'SDMA', fields:[['name','Name'],['designation','Designation'], ...PHONE_EMAIL_FIELDS, ['department','Concerned Department']]},
+  {key:'commissioner1', label:'1st Contact', fields:COMMISSIONER_CONTACT_FIELDS},
+  {key:'commissioner2', label:'2nd Contact', fields:COMMISSIONER_CONTACT_FIELDS},
+  {key:'sdma', label:'SDMA', fields:[['name','Name'],['designation','Designation'], ...PHONE_EMAIL_FIELDS]},
 ];
 function contactInputType(field){ return field.startsWith('phone') ? 'tel' : field==='email' ? 'email' : 'text'; }
 function contactFieldsHtml(contacts){
@@ -1480,7 +1480,7 @@ function contactSummary(group, v){
   const lines = [];
   if(v.name) lines.push(`<strong>${esc(v.name)}</strong>`);
   if(v.designation) lines.push(esc(v.designation));
-  if(v.department) lines.push(esc(v.department));
+  if(v.department && group==='mayor') lines.push(esc(v.department));
   if(v.phoneOffice) lines.push('Office: ' + contactLine('phoneOffice', v.phoneOffice));
   if(v.phonePersonal) lines.push('Personal: ' + contactLine('phonePersonal', v.phonePersonal));
   if(v.email) lines.push(contactLine('email', v.email));
