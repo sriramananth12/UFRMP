@@ -294,13 +294,13 @@
   .contact-form-title{ font-size:11px; text-transform:uppercase; letter-spacing:.05em; font-weight:600; color:var(--water-deep); margin:10px 0 6px; font-family:'IBM Plex Mono'; }
   .contact-fields{ display:grid; grid-template-columns:repeat(var(--n),1fr); gap:0 14px; }
   @media(max-width:1100px){ .contact-fields{ grid-template-columns:repeat(2,1fr); } }
-  .contact-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
-  @media(max-width:820px){ .contact-grid{ grid-template-columns:1fr; } }
+  .contact-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:14px; }
   .contact-box{ border:1px solid var(--line); border-radius:8px; padding:4px 14px 12px; }
   .contact-body, .contact-cell{ font-size:12.5px; line-height:1.6; }
   .contact-body a, .contact-cell a{ color:var(--water); text-decoration:none; }
   .contact-missing{ color:var(--muted); font-style:italic; }
   .contact-phase{ margin-top:4px; }
+  .contact-edit{ border:1px solid #2A5558; border-radius:8px; padding:12px 16px; margin-bottom:14px; }
   .dash-dark .contact-form-title{ color:#8FB9B4; }
   .dash-dark .contact-cell a{ color:#7FC4F0; }
   .dash-dark .contact-missing{ color:#7FA7A2; }
@@ -1433,11 +1433,14 @@ window.deleteOtherEvent = deleteOtherEvent;
    Kept on the city programme record (city.contacts), which is saved
    under that city's own key, so a city login only sees its own city.
 --------------------------------------------------------------- */
-const COMMISSIONER_FIELDS = [['name','Name'],['designation','Designation'],['phoneOffice','Phone (Office)'],['phonePersonal','Phone (Personal)']];
+const PHONE_EMAIL_FIELDS = [['phoneOffice','Phone (Office)'],['phonePersonal','Phone (Personal)'],['email','Email ID']];
+const COMMISSIONER_CONTACT_FIELDS = [['name','Name'],['designation','Designation'], ...PHONE_EMAIL_FIELDS];
 const CONTACT_GROUPS = [
-  {key:'mayor', label:'Mayor', fields:[['name','Name'],['phoneOffice','Phone (Office)'],['phonePersonal','Phone (Personal)'],['email','Email ID'],['department','Concerned Department']]},
-  {key:'commissioner1', label:'Commissioner · 1st Contact', fields:COMMISSIONER_FIELDS},
-  {key:'commissioner2', label:'Commissioner · 2nd Contact', fields:COMMISSIONER_FIELDS},
+  {key:'mayor', label:'Mayor', fields:[['name','Name'], ...PHONE_EMAIL_FIELDS, ['department','Concerned Department']]},
+  {key:'commissioner', label:'Commissioner', fields:[['name','Name'], ...PHONE_EMAIL_FIELDS]},
+  {key:'commissioner1', label:'Commissioner · 1st Contact', fields:COMMISSIONER_CONTACT_FIELDS},
+  {key:'commissioner2', label:'Commissioner · 2nd Contact', fields:COMMISSIONER_CONTACT_FIELDS},
+  {key:'sdma', label:'SDMA', fields:[['name','Name'],['designation','Designation'], ...PHONE_EMAIL_FIELDS, ['department','Concerned Department']]},
 ];
 function contactInputType(field){ return field.startsWith('phone') ? 'tel' : field==='email' ? 'email' : 'text'; }
 function contactFieldsHtml(contacts){
@@ -1479,35 +1482,61 @@ function contactSummary(group, v){
 function cityContactsCard(city){
   const c = city.contacts || {};
   return `<div class="card">
-    <div class="section-title">Contact Details <span class="hint">edit under Data Entry › Contact Details</span></div>
+    <div class="section-title">Contact Details <span class="hint">Mayor, Commissioner and SDMA · edit under Data Entry › Contact Details${isMaster()?' or from the dashboard':''}</span></div>
     <div class="contact-grid">${CONTACT_GROUPS.map(g=>`<div class="contact-box"><div class="contact-form-title">${g.label}</div><div class="contact-body">${contactSummary(g.key, c[g.key])}</div></div>`).join('')}</div>
   </div>`;
 }
 let contactsPhaseFilter = 0; // 0 = all phases (dashboard directory only)
-function setContactsPhaseFilter(v){
-  contactsPhaseFilter = Number(v)||0;
+let contactsEditingId = null;  // city whose contacts are open for editing in the directory
+// The directory lives in #contactsHost on the dashboard (all cities, phase filter) and on a phase page (that phase only).
+function renderContactsHost(){
   const host = document.getElementById('contactsHost');
-  if(host) host.innerHTML = contactsDirectoryHtml(DB.cityProgrammes, 'City Contacts', true);
-}
-window.setContactsPhaseFilter = setContactsPhaseFilter;
-function contactsDirectoryHtml(cities, title, withFilter){
-  if(withFilter && contactsPhaseFilter) cities = cities.filter(c=>c.phase===contactsPhaseFilter);
-  const filter = withFilter ? `<select onchange="setContactsPhaseFilter(this.value)" style="padding:7px 10px;border-radius:7px;border:1px solid #2A4A4D;background:#0F2A2D;color:#EAF3F1;font-size:12.5px;margin-left:auto;">
-      <option value="0">All phases</option>${PHASES.map(p=>`<option value="${p}" ${p===contactsPhaseFilter?'selected':''}>Phase ${p}</option>`).join('')}</select>` : '';
+  if(!host) return;
+  const onPhasePage = ROUTE.page==='phase';
+  let cities = onPhasePage ? DB.cityProgrammes.filter(c=>c.phase===ROUTE.phase) : DB.cityProgrammes;
+  if(!onPhasePage && contactsPhaseFilter) cities = cities.filter(c=>c.phase===contactsPhaseFilter);
+  const filter = onPhasePage ? '' : `<select onchange="setContactsPhaseFilter(this.value)" style="padding:7px 10px;border-radius:7px;border:1px solid #2A4A4D;background:#0F2A2D;color:#EAF3F1;font-size:12.5px;margin-left:auto;">
+      <option value="0">All phases</option>${PHASES.map(p=>`<option value="${p}" ${p===contactsPhaseFilter?'selected':''}>Phase ${p}</option>`).join('')}</select>`;
+  const title = onPhasePage ? `Phase ${ROUTE.phase} City Contacts` : 'City Contacts';
+  const editing = getCity(contactsEditingId);
   const rows = cities.map(c=>{
     const ct = c.contacts || {};
     return `<tr>
       <td><span class="city-chip" style="width:auto;display:inline-block;cursor:pointer;" onclick="gotoCity('${c.id}')">${esc(c.cityName)}</span><div class="contact-phase">${phasePill(c.phase)}</div></td>
       ${CONTACT_GROUPS.map(g=>`<td class="contact-cell">${contactSummary(g.key, ct[g.key])}</td>`).join('')}
-      <td><button class="btn" style="padding:5px 10px;font-size:11.5px;" onclick="gotoCity('${c.id}','entry');cityEntryTab='contacts';render();">Edit</button></td>
+      <td><button class="btn" style="padding:5px 10px;font-size:11.5px;" onclick="editCityContacts('${c.id}')">Edit</button></td>
     </tr>`;
   }).join('');
-  return `<div class="card">
-    <div class="section-title">${title} <span class="hint">Mayor and Commissioner contacts for each city programme</span>${filter}</div>
+  host.innerHTML = `<div class="card">
+    <div class="section-title">${title} <span class="hint">Mayor, Commissioner and SDMA contacts for each city programme · edits show on the city's own page</span>${filter}</div>
+    ${editing ? `
+    <form id="fDirContacts" class="contact-edit">
+      <div class="section-title">Editing contacts for ${esc(editing.cityName)} ${phasePill(editing.phase)}</div>
+      ${contactFieldsHtml(editing.contacts)}
+      <div class="form-actions"><button class="btn" type="submit">Save Contact Details</button> <button class="btn" type="button" onclick="editCityContacts(null)" style="background:#3B5C5F;">Cancel</button></div>
+    </form>` : ''}
     <div style="overflow-x:auto;"><table><thead><tr><th>City</th>${CONTACT_GROUPS.map(g=>`<th>${g.label}</th>`).join('')}<th></th></tr></thead>
     <tbody>${rows || `<tr><td colspan="${CONTACT_GROUPS.length+2}" class="empty">No cities yet.</td></tr>`}</tbody></table></div>
   </div>`;
+  const f = document.getElementById('fDirContacts');
+  if(f) f.addEventListener('submit', async e=>{
+    e.preventDefault();
+    editing.contacts = readContacts(new FormData(e.target));
+    const ok = await saveArr('cityProgrammes', DB.cityProgrammes);
+    if(ok) contactsEditingId = null;
+    renderContactsHost();
+    showMsg(ok ? `Contact details saved for ${editing.cityName}.` : 'Could not save — try again.', ok);
+  });
 }
+function setContactsPhaseFilter(v){ contactsPhaseFilter = Number(v)||0; renderContactsHost(); }
+function editCityContacts(cityId){
+  contactsEditingId = cityId;
+  renderContactsHost();
+  const f = document.getElementById('fDirContacts');
+  if(f && f.scrollIntoView) f.scrollIntoView({behavior:'smooth', block:'start'});
+}
+window.setContactsPhaseFilter = setContactsPhaseFilter;
+window.editCityContacts = editCityContacts;
 let dashboardPhaseSelected = 1;
 let showAddCityForm = false;
 function phaseSection(phase){
@@ -1677,11 +1706,12 @@ function renderDashboard(){
       </div>
       <div id="phaseTableHost"></div>
     </div>
-    <div id="contactsHost">${contactsDirectoryHtml(DB.cityProgrammes, 'City Contacts', true)}</div>
+    <div id="contactsHost"></div>
     </div>
   `;
   const phaseHost = document.getElementById('phaseTableHost');
   phaseHost.innerHTML = phaseSection(dashboardPhaseSelected);
+  renderContactsHost();
   document.getElementById('phaseSelect').addEventListener('change', e=>{
     dashboardPhaseSelected = Number(e.target.value);
     phaseHost.innerHTML = phaseSection(dashboardPhaseSelected);
@@ -1751,9 +1781,10 @@ function renderPhasePage(phase){
       </div>
     </div>
     ${phaseSection(phase)}
-    ${contactsDirectoryHtml(cities, 'Phase ' + phase + ' City Contacts')}` : ''}
+    <div id="contactsHost"></div>` : ''}
     </div>
   `;
+  renderContactsHost();
   document.getElementById('toggleAddCityBtn').addEventListener('click', ()=>{
     showAddCityForm = !showAddCityForm;
     render();
