@@ -289,6 +289,21 @@
   .phase-card-p2{ border-left-color:var(--p2); }
   .phase-card-p3{ border-left-color:var(--p3); }
   .phase-card-p4{ border-left-color:var(--p4); }
+  /* City contact details */
+  .contact-form-group{ margin:6px 0 4px; }
+  .contact-form-title{ font-size:11px; text-transform:uppercase; letter-spacing:.05em; font-weight:600; color:var(--water-deep); margin:10px 0 6px; font-family:'IBM Plex Mono'; }
+  .contact-fields{ display:grid; grid-template-columns:repeat(var(--n),1fr); gap:0 14px; }
+  @media(max-width:1100px){ .contact-fields{ grid-template-columns:repeat(2,1fr); } }
+  .contact-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+  @media(max-width:820px){ .contact-grid{ grid-template-columns:1fr; } }
+  .contact-box{ border:1px solid var(--line); border-radius:8px; padding:4px 14px 12px; }
+  .contact-body, .contact-cell{ font-size:12.5px; line-height:1.6; }
+  .contact-body a, .contact-cell a{ color:var(--water); text-decoration:none; }
+  .contact-missing{ color:var(--muted); font-style:italic; }
+  .contact-phase{ margin-top:4px; }
+  .dash-dark .contact-form-title{ color:#8FB9B4; }
+  .dash-dark .contact-cell a{ color:#7FC4F0; }
+  .dash-dark .contact-missing{ color:#7FA7A2; }
   .phase-card-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
   .phase-card-count{ font-size:12px; color:#8FB9B4; font-family:'IBM Plex Mono'; }
   .phase-card-stats{ display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; }
@@ -1413,6 +1428,86 @@ window.deleteOtherEvent = deleteOtherEvent;
 /* ---------------------------------------------------------------
    RENDER: DASHBOARD (map + national summary + table)
 --------------------------------------------------------------- */
+/* ---------------------------------------------------------------
+   CITY CONTACT DETAILS
+   Kept on the city programme record (city.contacts), which is saved
+   under that city's own key, so a city login only sees its own city.
+--------------------------------------------------------------- */
+const COMMISSIONER_FIELDS = [['name','Name'],['designation','Designation'],['phoneOffice','Phone (Office)'],['phonePersonal','Phone (Personal)']];
+const CONTACT_GROUPS = [
+  {key:'mayor', label:'Mayor', fields:[['name','Name'],['phoneOffice','Phone (Office)'],['phonePersonal','Phone (Personal)'],['email','Email ID'],['department','Concerned Department']]},
+  {key:'commissioner1', label:'Commissioner · 1st Contact', fields:COMMISSIONER_FIELDS},
+  {key:'commissioner2', label:'Commissioner · 2nd Contact', fields:COMMISSIONER_FIELDS},
+];
+function contactInputType(field){ return field.startsWith('phone') ? 'tel' : field==='email' ? 'email' : 'text'; }
+function contactFieldsHtml(contacts){
+  contacts = contacts || {};
+  return CONTACT_GROUPS.map(g=>{
+    const v = contacts[g.key] || {};
+    return `<div class="contact-form-group"><div class="contact-form-title">${g.label}</div><div class="contact-fields" style="--n:${g.fields.length}">
+      ${g.fields.map(([f,l])=>`<div class="field"><label>${l}</label><input type="${contactInputType(f)}" name="ct_${g.key}_${f}" value="${esc(v[f]||'')}"></div>`).join('')}
+    </div></div>`;
+  }).join('');
+}
+function readContacts(fd){
+  const out = {};
+  CONTACT_GROUPS.forEach(g=>{
+    const v = {};
+    g.fields.forEach(([f])=>{ const x = String(fd.get(`ct_${g.key}_${f}`)||'').trim(); if(x) v[f] = x; });
+    if(Object.keys(v).length) out[g.key] = v;
+  });
+  return out;
+}
+function contactLine(field, value){
+  if(!value) return '';
+  if(field.startsWith('phone')) return `<a href="tel:${esc(value.replace(/[^\d+]/g,''))}">${esc(value)}</a>`;
+  if(field==='email') return `<a href="mailto:${esc(value)}">${esc(value)}</a>`;
+  return esc(value);
+}
+// One person's details as short lines: name first, then designation/department, phones and email.
+function contactSummary(group, v){
+  if(!v || !Object.keys(v).length) return '<span class="contact-missing">Not added</span>';
+  const lines = [];
+  if(v.name) lines.push(`<strong>${esc(v.name)}</strong>`);
+  if(v.designation) lines.push(esc(v.designation));
+  if(v.department) lines.push(esc(v.department));
+  if(v.phoneOffice) lines.push('Office: ' + contactLine('phoneOffice', v.phoneOffice));
+  if(v.phonePersonal) lines.push('Personal: ' + contactLine('phonePersonal', v.phonePersonal));
+  if(v.email) lines.push(contactLine('email', v.email));
+  return lines.join('<br>');
+}
+function cityContactsCard(city){
+  const c = city.contacts || {};
+  return `<div class="card">
+    <div class="section-title">Contact Details <span class="hint">edit under Data Entry › Contact Details</span></div>
+    <div class="contact-grid">${CONTACT_GROUPS.map(g=>`<div class="contact-box"><div class="contact-form-title">${g.label}</div><div class="contact-body">${contactSummary(g.key, c[g.key])}</div></div>`).join('')}</div>
+  </div>`;
+}
+let contactsPhaseFilter = 0; // 0 = all phases (dashboard directory only)
+function setContactsPhaseFilter(v){
+  contactsPhaseFilter = Number(v)||0;
+  const host = document.getElementById('contactsHost');
+  if(host) host.innerHTML = contactsDirectoryHtml(DB.cityProgrammes, 'City Contacts', true);
+}
+window.setContactsPhaseFilter = setContactsPhaseFilter;
+function contactsDirectoryHtml(cities, title, withFilter){
+  if(withFilter && contactsPhaseFilter) cities = cities.filter(c=>c.phase===contactsPhaseFilter);
+  const filter = withFilter ? `<select onchange="setContactsPhaseFilter(this.value)" style="padding:7px 10px;border-radius:7px;border:1px solid #2A4A4D;background:#0F2A2D;color:#EAF3F1;font-size:12.5px;margin-left:auto;">
+      <option value="0">All phases</option>${PHASES.map(p=>`<option value="${p}" ${p===contactsPhaseFilter?'selected':''}>Phase ${p}</option>`).join('')}</select>` : '';
+  const rows = cities.map(c=>{
+    const ct = c.contacts || {};
+    return `<tr>
+      <td><span class="city-chip" style="width:auto;display:inline-block;cursor:pointer;" onclick="gotoCity('${c.id}')">${esc(c.cityName)}</span><div class="contact-phase">${phasePill(c.phase)}</div></td>
+      ${CONTACT_GROUPS.map(g=>`<td class="contact-cell">${contactSummary(g.key, ct[g.key])}</td>`).join('')}
+      <td><button class="btn" style="padding:5px 10px;font-size:11.5px;" onclick="gotoCity('${c.id}','entry');cityEntryTab='contacts';render();">Edit</button></td>
+    </tr>`;
+  }).join('');
+  return `<div class="card">
+    <div class="section-title">${title} <span class="hint">Mayor and Commissioner contacts for each city programme</span>${filter}</div>
+    <div style="overflow-x:auto;"><table><thead><tr><th>City</th>${CONTACT_GROUPS.map(g=>`<th>${g.label}</th>`).join('')}<th></th></tr></thead>
+    <tbody>${rows || `<tr><td colspan="${CONTACT_GROUPS.length+2}" class="empty">No cities yet.</td></tr>`}</tbody></table></div>
+  </div>`;
+}
 let dashboardPhaseSelected = 1;
 let showAddCityForm = false;
 function phaseSection(phase){
@@ -1490,6 +1585,8 @@ function addCityFormHtml(fixedPhase){
           <div class="field"><label>Approved Projects Amount (₹ Cr)</label><input type="number" step="0.01" name="approvedProjectsAmountCr"></div>
           <div class="field"><label>NDRF Share (₹ Cr)</label><input type="number" step="0.01" name="ndrfShareCr"></div>
         </div>
+        <div class="section-title" style="margin-top:14px;">Contact Details <span class="hint">optional, can be added later from the city's Data Entry tab</span></div>
+        ${contactFieldsHtml({})}
         <div class="form-actions"><button class="btn" type="submit">Add City / Programme</button></div>
       </form>`;
 }
@@ -1510,7 +1607,8 @@ function bindAddCityForm(){
         stateShareCr: fd.get('stateShareCr')===''?null:Number(fd.get('stateShareCr')),
         approvedProjectsAmountCr: fd.get('approvedProjectsAmountCr')===''?null:Number(fd.get('approvedProjectsAmountCr')),
         ndrfShareCr: fd.get('ndrfShareCr')===''?null:Number(fd.get('ndrfShareCr')),
-        lat: Number(fd.get('lat')), lng: Number(fd.get('lng'))
+        lat: Number(fd.get('lat')), lng: Number(fd.get('lng')),
+        contacts: readContacts(fd)
       };
       DB.cityProgrammes.push(city);
       const ok = await saveArr('cityProgrammes', DB.cityProgrammes);
@@ -1579,6 +1677,7 @@ function renderDashboard(){
       </div>
       <div id="phaseTableHost"></div>
     </div>
+    <div id="contactsHost">${contactsDirectoryHtml(DB.cityProgrammes, 'City Contacts', true)}</div>
     </div>
   `;
   const phaseHost = document.getElementById('phaseTableHost');
@@ -1651,7 +1750,8 @@ function renderPhasePage(phase){
         </div>
       </div>
     </div>
-    ${phaseSection(phase)}` : ''}
+    ${phaseSection(phase)}
+    ${contactsDirectoryHtml(cities, 'Phase ' + phase + ' City Contacts')}` : ''}
     </div>
   `;
   document.getElementById('toggleAddCityBtn').addEventListener('click', ()=>{
@@ -1713,6 +1813,17 @@ function exportLiveDataToXLSX(){
     'Approved Project Amount (Cr)': c.approvedProjectsAmountCr,
     'Latitude': c.lat, 'Longitude': c.lng
   })));
+
+  const contactRows = [];
+  (DB.cityProgrammes||[]).forEach(c=>CONTACT_GROUPS.forEach(g=>{
+    const v = (c.contacts||{})[g.key] || {};
+    contactRows.push({
+      'City Programme ID': c.id, 'City': c.cityName, 'Phase': c.phase, 'Contact': g.label,
+      'Name': v.name||'', 'Designation': v.designation||'', 'Concerned Department': v.department||'',
+      'Phone (Office)': v.phoneOffice||'', 'Phone (Personal)': v.phonePersonal||'', 'Email ID': v.email||''
+    });
+  }));
+  addSheet('City Contacts', contactRows);
 
   addSheet('Phase Summary', PHASES.map(phase=>{
     const cities = (DB.cityProgrammes||[]).filter(c=>c.phase===phase);
@@ -1884,6 +1995,7 @@ function renderCityOverview(city){
         <div style="width:190px;">${renderCityStateMap(city)}</div>
       </div>
     </div>
+    ${cityContactsCard(city)}
     <div class="card"><div class="section-title">Projects</div>${compRows}</div>
     <div class="card">
       <div class="section-title">Project Briefs<span class="hint">summarised from the city's executive summary / DPR documents</span></div>
@@ -2306,7 +2418,7 @@ function renderCityTimelineDetail(city, host){
 /* ---- Data Entry (scoped to a city) ---- */
 let cityEntryTab = 'component';
 function renderCityEntry(city, host){
-  const tabs = [['component','Add Project'],['dpr','Add DPR'],['work','Add Component'],['progress','Update Progress'],['gantt','Implementation Gantt'],['budgetmatrix','Budget Matrix'],['photos','Upload Photos'],['timeline','Approval Timeline'],['me','Monitoring & Evaluation'],['programme','Edit City Programme']];
+  const tabs = [['component','Add Project'],['dpr','Add DPR'],['work','Add Component'],['progress','Update Progress'],['gantt','Implementation Gantt'],['budgetmatrix','Budget Matrix'],['photos','Upload Photos'],['timeline','Approval Timeline'],['me','Monitoring & Evaluation'],['programme','Edit City Programme'],['contacts','Contact Details']];
   host.innerHTML = `
     <div class="form-tabs">${tabs.map(([k,l])=>`<button data-etab="${k}" class="${cityEntryTab===k?'active':''}">${l}</button>`).join('')}</div>
     <div id="msgBox" class="msg"></div>
@@ -2854,6 +2966,21 @@ function renderCityEntry(city, host){
       const ok = await saveArr('cityProgrammes', DB.cityProgrammes);
       if(ok) render();
       showMsg(ok?'Programme figures updated.':'Could not save — try again.', ok);
+    });
+  }
+
+  if(cityEntryTab==='contacts'){
+    fh.innerHTML = `
+    <form id="fContacts">
+      ${contactFieldsHtml(city.contacts)}
+      <div class="form-actions"><button class="btn" type="submit">Save Contact Details</button></div>
+    </form>`;
+    document.getElementById('fContacts').addEventListener('submit', async e=>{
+      e.preventDefault();
+      city.contacts = readContacts(new FormData(e.target));
+      const ok = await saveArr('cityProgrammes', DB.cityProgrammes);
+      if(ok) render();
+      showMsg(ok?'Contact details saved.':'Could not save — try again.', ok);
     });
   }
 }
