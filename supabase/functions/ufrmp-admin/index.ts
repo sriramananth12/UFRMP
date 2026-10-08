@@ -71,6 +71,13 @@ async function getProfile(admin: any, userId: unknown) {
   return data;
 }
 
+// Keeps the master's readable copy of a password. A failure here never undoes
+// the login change itself; the copy is just missing until the next reset.
+async function savePasswordCopy(admin: any, userId: string, password: string) {
+  const { error } = await admin.from('login_passwords').upsert({ user_id: userId, password, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+  if (error) console.error('Could not save the password copy:', error.message);
+}
+
 async function createLogin(admin: any, body: any) {
   const username = cleanUsername(body.username);
   const password = checkPassword(body.password);
@@ -83,6 +90,7 @@ async function createLogin(admin: any, body: any) {
     await admin.auth.admin.deleteUser(data.user.id);
     throw new Fail(400, pErr.code === '23505' ? 'That username is already taken.' : pErr.message);
   }
+  await savePasswordCopy(admin, data.user.id, password);
   return { ok: true, userId: data.user.id };
 }
 
@@ -118,6 +126,7 @@ async function updateLogin(admin: any, body: any) {
       }
       throw new Fail(400, authMessage(error));
     }
+    if (authPatch.password) await savePasswordCopy(admin, target.user_id, authPatch.password as string);
   }
   return { ok: true };
 }

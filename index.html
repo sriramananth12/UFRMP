@@ -152,6 +152,9 @@
   .users-table input, .users-table select{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;font-family:'Inter',sans-serif;}
   .pw-wrap{position:relative;}
   .pw-wrap input{padding-right:38px !important;}
+  .pw-view{display:flex;align-items:center;gap:6px;}
+  .pw-view .pw-text{font-family:'IBM Plex Mono';font-size:12.5px;word-break:break-all;}
+  .pw-view .pw-eye{position:static;transform:none;}
   .pw-eye{position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);padding:5px 6px;border-radius:5px;line-height:0;}
   .pw-eye:hover{color:var(--ink);background:#F1F5F4;}
   .users-actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;}
@@ -3114,6 +3117,7 @@ const USERNAME_RE = /^[A-Za-z0-9._-]{3,32}$/; // same rule as the Edge Function
 const MIN_PASSWORD_LENGTH = 8;
 let USERS_LIST = null;    // user_profiles rows, null until loaded
 let usersEditingId = null;
+let PASSWORD_COPIES = {}; // user_id -> password, for passwords set from this page
 async function adminCall(action, payload){
   const { data, error } = await supabaseClient.functions.invoke('ufrmp-admin', { body: Object.assign({ action }, payload) });
   if(error){
@@ -3127,6 +3131,10 @@ async function refreshUsers(){
   try{
     const { data, error } = await supabaseClient.from('user_profiles').select('user_id,username,role,city_id');
     if(error) throw new Error(error.message);
+    // Readable password copies (master only). Missing table or no copy just means nothing to show.
+    const copies = await supabaseClient.from('login_passwords').select('user_id,password');
+    PASSWORD_COPIES = {};
+    if(!copies.error) (copies.data||[]).forEach(r=>{ PASSWORD_COPIES[r.user_id] = r.password; });
     USERS_LIST = (data||[]).sort((a,b)=>(a.role==='master'?0:1)-(b.role==='master'?0:1) || cityRank(a.city_id)-cityRank(b.city_id) || a.username.localeCompare(b.username));
   }catch(e){
     USERS_LIST = null;
@@ -3159,7 +3167,9 @@ function renderUsers(){
     return `<tr>
       <td><strong>${esc(u.username)}</strong>${self?' <span style="color:var(--muted);font-size:11.5px;">(you)</span>':''}</td>
       <td>${u.role==='master' ? '<span class="pill blue">Master · all cities</span>' : esc(userCityLabel(u.city_id))}</td>
-      <td style="color:var(--muted);">••••••••</td>
+      <td>${u.user_id in PASSWORD_COPIES
+        ? `<div class="pw-view"><span class="pw-text" data-pw="${esc(PASSWORD_COPIES[u.user_id])}">••••••••</span><button type="button" class="pw-eye" onclick="toggleStoredPassword(this)" title="Show password" aria-label="Show password" aria-pressed="false">${EYE_OPEN}</button></div>`
+        : '<span style="color:var(--muted);font-size:12px;" title="This password was set before passwords were saved. Use Edit to set a new one, and it will show here.">Not saved · set a new one with Edit</span>'}</td>
       <td><div class="users-actions"><button class="btn small ghost" onclick="editUser('${esc(u.user_id)}')">Edit</button>${u.role==='city'?`<button class="btn small danger" onclick="deleteUserLogin('${esc(u.user_id)}')">Remove</button>`:''}</div></td>
     </tr>`;
   }).join('');
@@ -3182,7 +3192,7 @@ function renderUsers(){
       </form>
     </div>
     <div class="card">
-      <div class="section-title">Logins <span class="hint">${USERS_LIST.length} in total · passwords can be reset but never shown</span></div>
+      <div class="section-title">Logins <span class="hint">${USERS_LIST.length} in total · click the eye to see a password</span></div>
       <table class="users-table">
         <thead><tr><th style="width:28%">Username</th><th style="width:30%">Access</th><th>Password</th><th></th></tr></thead>
         <tbody>${rows || '<tr><td colspan="4" class="empty">No logins yet.</td></tr>'}</tbody>
@@ -3218,6 +3228,16 @@ function togglePasswordVisible(btn){
   btn.setAttribute('aria-pressed', String(show));
 }
 window.togglePasswordVisible = togglePasswordVisible;
+function toggleStoredPassword(btn){
+  const text = btn.parentElement.querySelector('.pw-text');
+  const show = btn.getAttribute('aria-pressed') !== 'true';
+  text.textContent = show ? text.dataset.pw : '••••••••';
+  btn.innerHTML = show ? EYE_SHUT : EYE_OPEN;
+  btn.title = show ? 'Hide password' : 'Show password';
+  btn.setAttribute('aria-label', btn.title);
+  btn.setAttribute('aria-pressed', String(show));
+}
+window.toggleStoredPassword = toggleStoredPassword;
 function checkLoginInput(username, password, passwordRequired){
   if(!USERNAME_RE.test(username)) return 'Usernames need 3–32 characters: letters, numbers, dot, underscore or hyphen.';
   if((passwordRequired || password) && password.length < MIN_PASSWORD_LENGTH) return `Passwords need at least ${MIN_PASSWORD_LENGTH} characters.`;
