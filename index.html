@@ -251,7 +251,7 @@
   .summary-table-wrap{flex:1;min-width:320px;}
 
   /* Dashboard dark theme */
-  .dash-dark{ background:#0B2124; margin:-28px -34px -60px; padding:28px 34px 60px; border-radius:0; }
+  .dash-dark{ background:#0B2124; margin:-28px -34px -60px; padding:28px 34px 60px; border-radius:0; min-height:100vh; }
   .dash-dark .page-head h1{ color:#EAF3F1; }
   .dash-dark .page-head p{ color:#8FB9B4; }
   .dash-dark .card{ background:#102B2E; border-color:#1E4245; }
@@ -300,6 +300,11 @@
   .contact-body a, .contact-cell a{ color:var(--water); text-decoration:none; }
   .contact-missing{ color:var(--muted); font-style:italic; }
   .contact-phase{ margin-top:4px; }
+  .contact-saved{ font-size:12px; color:var(--green); margin-top:8px; }
+  .dash-dark .contact-saved{ color:#7FD1A8; }
+  .dash-dark .contact-box{ border-color:#22484B; }
+  .dash-dark .contact-body{ color:#DCEEEC; }
+  .dash-dark .contact-body a{ color:#7FC4F0; }
   .contact-edit{ border:1px solid #2A5558; border-radius:8px; padding:12px 16px; margin-bottom:14px; }
   .dash-dark .contact-form-title{ color:#8FB9B4; }
   .dash-dark .contact-cell a{ color:#7FC4F0; }
@@ -354,6 +359,7 @@
     <div class="nav">
       <button data-nav="dashboard" class="active">◧ Dashboard</button>
       <button data-nav="phase4" style="display:none;">◈ Phase 4</button>
+      <button data-nav="contacts" style="display:none;">☏ Contact Details</button>
       <button data-nav="users" style="display:none;">⚿ User Logins</button>
     </div>
     <div class="sidebar-label">Cities</div>
@@ -1401,6 +1407,7 @@ document.querySelector('[data-nav="dashboard"]').addEventListener('click', ()=>{
   render();
 });
 function gotoCity(cityId, tab='overview'){
+  contactsPanelEditing = false;
   ROUTE = { page:'city', cityId, cityTab:tab, componentId:null, dprId:null, workId:null };
   document.querySelector('[data-nav="dashboard"]').classList.remove('active');
   render();
@@ -1410,7 +1417,7 @@ function gotoDashboard(){
   document.querySelector('[data-nav="dashboard"]').classList.add('active');
   render();
 }
-function setCityTab(tab){ ROUTE.cityTab = tab; ROUTE.componentId=null; ROUTE.dprId=null; ROUTE.workId=null; render(); }
+function setCityTab(tab){ contactsPanelEditing = false; ROUTE.cityTab = tab; ROUTE.componentId=null; ROUTE.dprId=null; ROUTE.workId=null; render(); }
 function setCityDrill(ids){ Object.assign(ROUTE, ids); render(); }
 window.gotoCity = gotoCity;
 window.gotoDashboard = gotoDashboard;
@@ -1479,12 +1486,37 @@ function contactSummary(group, v){
   if(v.email) lines.push(contactLine('email', v.email));
   return lines.join('<br>');
 }
-function cityContactsCard(city){
+// One city's contacts as a card with an Edit button that opens the form in place.
+// Used by the city page's Contact Details tab and the master's Contact Details page.
+let contactsPanelEditing = false;
+function renderCityContactsPanel(city, host){
   const c = city.contacts || {};
-  return `<div class="card">
-    <div class="section-title">Contact Details <span class="hint">Mayor, Commissioner and SDMA · edit under Data Entry › Contact Details${isMaster()?' or from the dashboard':''}</span></div>
-    <div class="contact-grid">${CONTACT_GROUPS.map(g=>`<div class="contact-box"><div class="contact-form-title">${g.label}</div><div class="contact-body">${contactSummary(g.key, c[g.key])}</div></div>`).join('')}</div>
+  host.innerHTML = `<div class="card">
+    <div class="section-title">Contact Details${ROUTE.page==='contacts' ? ' · ' + esc(city.cityName) + ' ' + phasePill(city.phase) : ''} <span class="hint">Mayor, Commissioner and SDMA</span>
+      ${contactsPanelEditing ? '' : `<button class="btn" id="editContactsBtn" style="padding:6px 12px;font-size:12px;">Edit Contact Details</button>`}
+    </div>
+    ${contactsPanelEditing ? `
+    <form id="fPanelContacts">
+      ${contactFieldsHtml(c)}
+      <div class="form-actions"><button class="btn" type="submit">Save Contact Details</button> <button class="btn" type="button" id="cancelContactsBtn" style="background:#5C6E6C;">Cancel</button></div>
+    </form>` : `
+    <div class="contact-grid">${CONTACT_GROUPS.map(g=>`<div class="contact-box"><div class="contact-form-title">${g.label}</div><div class="contact-body">${contactSummary(g.key, c[g.key])}</div></div>`).join('')}</div>`}
+    <div id="contactsSavedNote" class="contact-saved"></div>
   </div>`;
+  const editBtn = document.getElementById('editContactsBtn');
+  if(editBtn) editBtn.addEventListener('click', ()=>{ contactsPanelEditing = true; renderCityContactsPanel(city, host); });
+  const cancelBtn = document.getElementById('cancelContactsBtn');
+  if(cancelBtn) cancelBtn.addEventListener('click', ()=>{ contactsPanelEditing = false; renderCityContactsPanel(city, host); });
+  const f = document.getElementById('fPanelContacts');
+  if(f) f.addEventListener('submit', async e=>{
+    e.preventDefault();
+    city.contacts = readContacts(new FormData(e.target));
+    const ok = await saveArr('cityProgrammes', DB.cityProgrammes);
+    if(ok) contactsPanelEditing = false;
+    renderCityContactsPanel(city, host);
+    const note = document.getElementById('contactsSavedNote');
+    if(note) note.textContent = ok ? 'Contact details saved.' : 'Could not save — try again.';
+  });
 }
 let contactsPhaseFilter = 0; // 0 = all phases (dashboard directory only)
 let contactsEditingId = null;  // city whose contacts are open for editing in the directory
@@ -1502,7 +1534,7 @@ function renderContactsHost(){
   const rows = cities.map(c=>{
     const ct = c.contacts || {};
     return `<tr>
-      <td><span class="city-chip" style="width:auto;display:inline-block;cursor:pointer;" onclick="gotoCity('${c.id}')">${esc(c.cityName)}</span><div class="contact-phase">${phasePill(c.phase)}</div></td>
+      <td><span class="city-chip" style="width:auto;display:inline-block;cursor:pointer;" onclick="${ROUTE.page==='contacts' ? `gotoContacts('${c.id}')` : `gotoCity('${c.id}','contacts')`}">${esc(c.cityName)}</span><div class="contact-phase">${phasePill(c.phase)}</div></td>
       ${CONTACT_GROUPS.map(g=>`<td class="contact-cell">${contactSummary(g.key, ct[g.key])}</td>`).join('')}
       <td><button class="btn" style="padding:5px 10px;font-size:11.5px;" onclick="editCityContacts('${c.id}')">Edit</button></td>
     </tr>`;
@@ -1706,12 +1738,10 @@ function renderDashboard(){
       </div>
       <div id="phaseTableHost"></div>
     </div>
-    <div id="contactsHost"></div>
     </div>
   `;
   const phaseHost = document.getElementById('phaseTableHost');
   phaseHost.innerHTML = phaseSection(dashboardPhaseSelected);
-  renderContactsHost();
   document.getElementById('phaseSelect').addEventListener('change', e=>{
     dashboardPhaseSelected = Number(e.target.value);
     phaseHost.innerHTML = phaseSection(dashboardPhaseSelected);
@@ -1792,6 +1822,47 @@ function renderPhasePage(phase){
   bindAddCityForm();
 }
 
+/* ---------------------------------------------------------------
+   RENDER: CONTACT DETAILS (master only) — pick a city, or see all
+--------------------------------------------------------------- */
+let contactsPageCityId = ''; // '' = all cities
+function gotoContacts(cityId){
+  if(cityId!==undefined) contactsPageCityId = cityId;
+  contactsPanelEditing = false; contactsEditingId = null;
+  ROUTE = { page:'contacts', cityId:null, cityTab:'overview', componentId:null, dprId:null, workId:null };
+  render();
+}
+window.gotoContacts = gotoContacts;
+function renderContactsPage(){
+  buildSidebarCityList();
+  const main = document.getElementById('main');
+  if(contactsPageCityId && !getCity(contactsPageCityId)) contactsPageCityId = '';
+  const opts = DB.cityProgrammes.map(c=>`<option value="${esc(c.id)}" ${c.id===contactsPageCityId?'selected':''}>${esc(c.cityName)} · Phase ${c.phase}</option>`).join('');
+  main.innerHTML = `
+    <div class="dash-dark">
+    <div class="crumb"><span onclick="gotoDashboard()">All Cities</span> / Contact Details</div>
+    <div class="page-head">
+      <div><h1>Contact Details</h1><p>Mayor, Commissioner and SDMA contacts for every city programme. Edits made here or on a city's own Contact Details tab show in both places.</p></div>
+    </div>
+    <div class="card">
+      <div class="section-title">City
+        <select id="contactsCitySelect" style="padding:7px 10px;border-radius:7px;border:1px solid #2A4A4D;background:#0F2A2D;color:#EAF3F1;font-size:12.5px;min-width:260px;">
+          <option value="" ${contactsPageCityId?'':'selected'}>All cities</option>${opts}
+        </select>
+      </div>
+    </div>
+    <div id="contactsHost"></div>
+    </div>`;
+  document.getElementById('contactsCitySelect').addEventListener('change', e=>{
+    contactsPageCityId = e.target.value; contactsPanelEditing = false; contactsEditingId = null;
+    renderContactsPage();
+  });
+  const host = document.getElementById('contactsHost');
+  const city = getCity(contactsPageCityId);
+  if(city) renderCityContactsPanel(city, host);
+  else renderContactsHost();
+}
+
 function selectDashboardPhase(phase){
   dashboardPhaseSelected = phase;
   renderDashboard();
@@ -1805,9 +1876,10 @@ function printCurrentPage(){
   const dateStr = new Date().toLocaleDateString('en-IN', {year:'numeric', month:'long', day:'numeric'});
   let label = 'National Programme Dashboard';
   if(ROUTE.page==='phase') label = 'Phase ' + ROUTE.phase + ' Programme';
+  if(ROUTE.page==='contacts'){ const cc = getCity(contactsPageCityId); label = 'Contact Details' + (cc ? ' — ' + cc.cityName : ' — All Cities'); }
   if(ROUTE.page==='city'){
     const city = getCity(ROUTE.cityId);
-    const tabLabels = {overview:'Overview', components:'Components & DPRs', gantt:'Implementation Gantt', budgetmatrix:'Budget Matrix', timeline:'Approval Timeline', me:'Monitoring & Evaluation', entry:'Data Entry'};
+    const tabLabels = {overview:'Overview', contacts:'Contact Details', components:'Components & DPRs', gantt:'Implementation Gantt', budgetmatrix:'Budget Matrix', timeline:'Approval Timeline', me:'Monitoring & Evaluation', entry:'Data Entry'};
     label = (city? city.cityName + ' — ' : '') + (tabLabels[ROUTE.cityTab] || ROUTE.cityTab);
   }
   if(sub) sub.textContent = label + ' · Printed ' + dateStr;
@@ -1963,7 +2035,7 @@ function renderCity(){
   const city = getCity(ROUTE.cityId);
   const main = document.getElementById('main');
   if(!city){ gotoDashboard(); return; }
-  const tabs = [['overview','Overview'],['components','Components & DPRs'],['gantt','Implementation Gantt'],['budgetmatrix','Budget Matrix'],['timeline','Approval Timeline'],['me','Monitoring & Evaluation'],['entry','Data Entry']];
+  const tabs = [['overview','Overview'],['contacts','Contact Details'],['components','Components & DPRs'],['gantt','Implementation Gantt'],['budgetmatrix','Budget Matrix'],['timeline','Approval Timeline'],['me','Monitoring & Evaluation'],['entry','Data Entry']];
 
   main.innerHTML = `
     <div class="crumb">${isMaster() ? '<span onclick="gotoDashboard()">All Cities</span> / ' : ''}${esc(city.cityName)}</div>
@@ -1975,6 +2047,7 @@ function renderCity(){
   `;
   const host = document.getElementById('cityContent');
   if(ROUTE.cityTab==='overview') host.innerHTML = renderCityOverview(city);
+  else if(ROUTE.cityTab==='contacts') renderCityContactsPanel(city, host);
   else if(ROUTE.cityTab==='components') renderCityComponents(city, host);
   else if(ROUTE.cityTab==='gantt') renderCityGantt(city, host);
   else if(ROUTE.cityTab==='timeline') renderCityTimeline(city, host);
@@ -2026,7 +2099,6 @@ function renderCityOverview(city){
         <div style="width:190px;">${renderCityStateMap(city)}</div>
       </div>
     </div>
-    ${cityContactsCard(city)}
     <div class="card"><div class="section-title">Projects</div>${compRows}</div>
     <div class="card">
       <div class="section-title">Project Briefs<span class="hint">summarised from the city's executive summary / DPR documents</span></div>
@@ -3164,6 +3236,7 @@ window.editUser = editUser;
 window.saveUserEdit = saveUserEdit;
 window.deleteUserLogin = deleteUserLogin;
 document.querySelector('[data-nav="phase4"]').addEventListener('click', ()=>gotoPhase(4));
+document.querySelector('[data-nav="contacts"]').addEventListener('click', ()=>gotoContacts());
 document.querySelector('[data-nav="users"]').addEventListener('click', ()=>{
   ROUTE = { page:'users', cityId:null, cityTab:'overview', componentId:null, dprId:null, workId:null };
   usersEditingId = null;
@@ -3235,6 +3308,7 @@ function applyUserChrome(){
   document.querySelector('[data-nav="users"]').style.display = isMaster() ? '' : 'none';
   document.querySelector('[data-nav="dashboard"]').style.display = isMaster() ? '' : 'none';
   document.querySelector('[data-nav="phase4"]').style.display = isMaster() ? '' : 'none';
+  document.querySelector('[data-nav="contacts"]').style.display = isMaster() ? '' : 'none';
   const sub = document.querySelector('.brand-sub');
   if(sub) sub.textContent = isMaster() ? 'UFRMP · ALL CITIES' : 'UFRMP · ' + (city ? city.cityName.toUpperCase() : 'CITY');
 }
@@ -3280,7 +3354,9 @@ function render(){
   document.querySelector('[data-nav="dashboard"]').classList.toggle('active', ROUTE.page==='dashboard');
   document.querySelector('[data-nav="users"]').classList.toggle('active', ROUTE.page==='users');
   document.querySelector('[data-nav="phase4"]').classList.toggle('active', ROUTE.page==='phase' && ROUTE.phase===4);
+  document.querySelector('[data-nav="contacts"]').classList.toggle('active', ROUTE.page==='contacts');
   if(ROUTE.page==='dashboard') renderDashboard();
+  else if(ROUTE.page==='contacts') renderContactsPage();
   else if(ROUTE.page==='phase') renderPhasePage(ROUTE.phase);
   else if(ROUTE.page==='city') renderCity();
   else if(ROUTE.page==='users') renderUsers();
