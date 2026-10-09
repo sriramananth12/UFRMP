@@ -61,3 +61,25 @@ sign in as `UFRMP_NDMA`. Usernames are not case-sensitive; passwords are.
 Then open **User Logins** to add a login for each city. You can rename a login,
 reset its password, move it to another city or remove it there. The master's own
 username and password can be changed there too.
+
+## If sign-in says "Could not reach the sign-in server"
+
+Some networks block `supabase.co` (several Indian ISPs, JioFiber in particular, since
+February 2026). The dashboard can go through a small Cloudflare Worker instead, and
+switches to it on its own on any network where Supabase can't be reached. Set it up
+once:
+
+1. Sign up or log in at **dash.cloudflare.com** (the free plan is enough).
+2. Open **Workers & Pages → Create → Create Worker** (start from "Hello World").
+3. Name it `ufrmp-proxy` and click **Deploy**.
+4. Click **Edit code**, replace everything with the contents of
+   `supabase/proxy/worker.js` from this repo, then click **Deploy**.
+5. Copy the worker's address, which looks like
+   `https://ufrmp-proxy.<your-name>.workers.dev`. Opening
+   `<that address>/auth/v1/health` on the blocked network should show a short line of
+   text, not an error.
+6. Put that address in `SUPABASE_PROXY_URL` near the top of the script in
+   `index.html` and publish the page.
+
+The worker only forwards requests to this Supabase project. It holds no keys, and
+the same sign-in and per-city rules apply through it.

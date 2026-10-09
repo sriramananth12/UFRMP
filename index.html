@@ -415,6 +415,10 @@ const MEMORY_STORE = {};
 --------------------------------------------------------------- */
 const SUPABASE_URL = 'https://nejpqyqmcbchivhtovny.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5lanBxeXFtY2JjaGl2aHRvdm55Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA4MzY5OTUsImV4cCI6MjEwNjQxMjk5NX0.Dp3DpvDiLRY9PpOuKGDmrR5pH6mnRa3MTSH7NmGfNg0';
+// Some networks (several Indian ISPs since Feb 2026) block supabase.co. When
+// one route can't be reached, requests go the other way: through this
+// Cloudflare Worker (supabase/proxy/worker.js), which forwards them unchanged.
+const SUPABASE_PROXY_URL = 'https://ufrmp-proxy.sriramananth12.workers.dev';
 const SB_WORKS_TABLE = 'works';
 const SB_GANTT_TABLE = 'gantt_data';
 const SB_BUDGETMATRIX_TABLE = 'budget_matrix';
@@ -423,10 +427,28 @@ const SB_TIMEOUT_MS = 15000; // a hung request falls back to local instead of le
 const SB_PAGE_SIZE = 1000;   // Supabase returns at most 1,000 rows per request by default
 const SB_UPSERT_CHUNK = 500;
 
-function sbFetch(input, init){
+const SB_ROUTE_KEY = 'ufrmp-via-proxy';
+let SB_VIA_PROXY = false;
+try{ SB_VIA_PROXY = !!SUPABASE_PROXY_URL && localStorage.getItem(SB_ROUTE_KEY) === '1'; }catch(e){}
+function sbFetchVia(input, init, viaProxy){
+  const url = input instanceof URL ? input.href : input;
+  if(viaProxy && typeof url === 'string' && url.startsWith(SUPABASE_URL)) input = SUPABASE_PROXY_URL.replace(/\/+$/, '') + url.slice(SUPABASE_URL.length);
   const ctrl = new AbortController();
   const timer = setTimeout(()=>ctrl.abort(), SB_TIMEOUT_MS);
   return fetch(input, Object.assign({}, init, { signal: ctrl.signal })).finally(()=>clearTimeout(timer));
+}
+async function sbFetch(input, init){
+  if(!SUPABASE_PROXY_URL) return sbFetchVia(input, init, false);
+  const first = SB_VIA_PROXY;
+  try{ return await sbFetchVia(input, init, first); }
+  catch(e){
+    // No response at all (blocked, unreachable or timed out): try the other route and remember it.
+    if(!(e instanceof TypeError || (e && e.name === 'AbortError'))) throw e;
+    const res = await sbFetchVia(input, init, !first);
+    SB_VIA_PROXY = !first;
+    try{ localStorage.setItem(SB_ROUTE_KEY, SB_VIA_PROXY ? '1' : '0'); }catch(e2){}
+    return res;
+  }
 }
 const supabaseClient = (window.supabase && typeof window.supabase.createClient === 'function' && SUPABASE_URL && SUPABASE_ANON_KEY)
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -3310,8 +3332,10 @@ document.getElementById('loginForm').addEventListener('submit', async e=>{
   try{ result = await supabaseClient.auth.signInWithPassword({ email: usernameToEmail(username), password }); }
   catch(err){ result = { error: err }; }
   if(result.error || !result.data || !result.data.user){
-    const text = result.error && !/invalid login credentials|invalid.*email/i.test(result.error.message||'')
-      ? 'Could not sign in: ' + (result.error.message || result.error) : 'Wrong username or password.';
+    const m = result.error ? String(result.error.message || result.error) : '';
+    const text = /failed to fetch|networkerror|load failed|abort/i.test(m)
+      ? 'Could not reach the sign-in server. Check the internet connection; some networks block it, so try another network if this keeps happening.'
+      : m && !/invalid login credentials|invalid.*email/i.test(m) ? 'Could not sign in: ' + m : 'Wrong username or password.';
     return showLogin(text);
   }
   document.getElementById('loginPass').value = '';
