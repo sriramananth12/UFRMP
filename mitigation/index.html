@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mitigation Programmes Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="programmes.js"></script>
+<style>
+  :root{
+    --bg:#F3F6F5; --surface:#FFFFFF; --line:#DCE3E1; --ink:#0F2427; --muted:#5C6E6C;
+    --water:#0E6BA8; --water-deep:#0B4F4A; --amber:#C97A2B; --green:#2E7D5B;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-serif;font-size:14px;}
+  h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0;letter-spacing:-0.01em;}
+  a{color:inherit;}
+  .top{background:var(--water-deep);color:#EAF3F1;padding:34px 16px 30px;}
+  .wrap{max-width:1080px;margin:0 auto;}
+  .top h1{font-size:28px;line-height:1.2;}
+  .top p{margin:8px 0 0;color:#B9D6D1;max-width:680px;line-height:1.5;}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-top:22px;}
+  .kpi{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:12px 14px;}
+  .kpi .label{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#9FC4BE;font-family:'IBM Plex Mono';}
+  .kpi .value{font-family:'Space Grotesk';font-weight:700;font-size:21px;margin-top:4px;}
+  main{padding:26px 16px 50px;}
+  .section{margin-top:26px;}
+  .section:first-child{margin-top:0;}
+  .section-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:12px;}
+  .section-head h2{font-size:19px;}
+  .section-head .hint{color:var(--muted);font-size:12.5px;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:flex;flex-direction:column;gap:10px;text-decoration:none;transition:border-color .15s, box-shadow .15s;}
+  a.card:hover{border-color:var(--water);box-shadow:0 4px 16px rgba(14,107,168,.12);}
+  .card-top{display:flex;gap:10px;align-items:flex-start;}
+  .no{flex-shrink:0;width:28px;height:28px;border-radius:7px;background:#EAF3F1;color:var(--water-deep);font-family:'IBM Plex Mono';font-weight:600;font-size:12.5px;display:flex;align-items:center;justify-content:center;}
+  .card h3{font-size:15.5px;line-height:1.3;}
+  .detail{color:var(--muted);font-size:12.5px;line-height:1.45;margin-top:4px;}
+  .facts{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;border-top:1px solid var(--line);padding-top:10px;}
+  .fact .l{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-family:'IBM Plex Mono';}
+  .fact .v{font-weight:600;margin-top:2px;}
+  .fact .v.blank{color:var(--muted);font-weight:500;}
+  .states{display:flex;flex-wrap:wrap;gap:5px;}
+  .chip{background:#EAF3F1;color:var(--ink);border-radius:6px;padding:3px 8px;font-size:11.5px;}
+  .chip.none{background:none;color:var(--muted);padding:3px 0;}
+  .open{margin-top:auto;color:var(--water);font-weight:600;font-size:13px;}
+  .ufrmp{background:var(--surface);border:1px dashed #9FB3AF;}
+  .foot{margin-top:34px;color:var(--muted);font-size:12px;line-height:1.6;}
+  @media (max-width:520px){ .top h1{font-size:23px;} .grid{grid-template-columns:1fr;} .facts{grid-template-columns:1fr 1fr;} }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <h1>Mitigation Programmes Portal</h1>
+    <p>Earmarked and non-earmarked mitigation programmes. Open a programme to track its states, components, DPRs, works, Gantt, budget matrix, approval timeline and M&amp;E, the same way as the Urban Flood Risk Management Programme dashboard.</p>
+    <div class="kpis" id="kpis"></div>
+  </div>
+</header>
+<main>
+  <div class="wrap">
+    <div id="sections"></div>
+    <div class="section">
+      <div class="section-head"><h2>Urban Flood Risk Management Programme</h2><span class="hint">the existing UFRMP dashboard, kept as it is</span></div>
+      <div class="grid">
+        <a class="card ufrmp" href="../">
+          <div class="card-top"><div class="no">UF</div><div><h3>Urban Flood Risk Management Programme (UFRMP)</h3><div class="detail">City-wise flood mitigation works funded under the NDMF.</div></div></div>
+          <div class="open">Open UFRMP dashboard →</div>
+        </a>
+      </div>
+    </div>
+    <p class="foot">Each programme has its own sign-in and keeps its data in its own part of the shared Supabase database, so entries are saved as soon as they are made. Setup steps are in <a href="https://github.com/sriramananth12/UFRMP/blob/main/mitigation/SETUP.md">mitigation/SETUP.md</a>.</p>
+  </div>
+</main>
+<script>
+(function(){
+  const progs = window.MITIGATION_PROGRAMMES || [];
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const cost = cr => '₹' + Number(cr).toLocaleString('en-IN', {maximumFractionDigits:2}) + ' Cr';
+  const sum = list => list.reduce((s, p) => s + Number(p.costCr || 0), 0);
+  const allStates = new Set();
+  progs.forEach(p => (p.states || []).forEach(s => allStates.add(s)));
+  const cats = ['Earmarked', 'Non-Earmarked'];
+
+  document.getElementById('kpis').innerHTML = [
+    ['Programmes', progs.length],
+    ...cats.map(c => [c + ' cost', cost(sum(progs.filter(p => p.category === c)))]),
+    ['Total cost', cost(sum(progs))],
+    ['States covered', allStates.size]
+  ].map(([l, v]) => `<div class="kpi"><div class="label">${esc(l)}</div><div class="value">${esc(v)}</div></div>`).join('');
+
+  document.getElementById('sections').innerHTML = cats.map(cat => {
+    const list = progs.filter(p => p.category === cat);
+    return `<div class="section">
+      <div class="section-head"><h2>${esc(cat)}</h2><span class="hint">${list.length} programme${list.length === 1 ? '' : 's'} · ${cost(sum(list))}</span></div>
+      <div class="grid">${list.map(p => {
+        const states = p.states || [];
+        return `<a class="card" href="programme.html?p=${encodeURIComponent(p.slug)}">
+          <div class="card-top"><div class="no">${esc(p.no)}</div><div><h3>${esc(p.name)}</h3>${p.detail ? `<div class="detail">${esc(p.detail)}</div>` : ''}</div></div>
+          <div class="facts">
+            <div class="fact"><div class="l">Cost</div><div class="v">${cost(p.costCr)}</div></div>
+            <div class="fact"><div class="l">Timeline</div><div class="v${p.timeline ? '' : ' blank'}">${p.timeline ? esc(p.timeline) : '—'}</div></div>
+            <div class="fact"><div class="l">States / UTs</div><div class="v${states.length ? '' : ' blank'}">${states.length || '—'}</div></div>
+          </div>
+          <div class="states">${states.length ? states.map(s => `<span class="chip">${esc(s)}</span>`).join('') : '<span class="chip none">States / UTs not specified yet</span>'}</div>
+          <div class="open">Open programme dashboard →</div>
+        </a>`;
+      }).join('')}</div>
+    </div>`;
+  }).join('');
+})();
+</script>
+</body>
+</html>
