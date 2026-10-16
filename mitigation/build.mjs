@@ -145,7 +145,7 @@ edit("lat: Number(fd.get('lat')), lng: Number(fd.get('lng')),", 'lat: ll.lat, ln
 
 /* ---------- programme name and details instead of UFRMP ---------- */
 edit('<div><h1>Urban Flood Risk Management Programme (UFRMP)</h1><p>Flood mitigation works across all cities and phases funded under the NDMF</p></div>\n    </div>\n    ${renderUnitToggle()}',
-  '<div><h1>${esc(PROG.name)}</h1><p>${PROG.detail ? esc(PROG.detail) + \' \' : \'\'}${esc(PROG.category)} mitigation programme · works across all states and phases</p></div>\n    </div>\n    ${renderProgrammeInfo()}\n    ${renderUnitToggle()}');
+  '<div><h1>${esc(PROG.name)}</h1><p>${PROG.detail ? esc(PROG.detail) + \' \' : \'\'}${esc(PROG.category)} mitigation programme · works across all states</p></div>\n    </div>\n    ${renderProgrammeInfo()}\n    ${renderUnitToggle()}');
 edit('<p>UFRMP Phase ${phase} city programmes funded under the NDMF', '<p>${esc(PROG.short)} Phase ${phase} state programmes funded under the NDMF');
 edit('XLSX.writeFile(wb, `UFRMP_Data_Tables_${stamp}.xlsx`);', 'XLSX.writeFile(wb, `${PROG.short}_Data_Tables_${stamp}.xlsx`);');
 edit("isMaster() ? 'UFRMP · ALL CITIES' : 'UFRMP · ' + (city ? city.cityName.toUpperCase() : 'CITY')",
@@ -156,8 +156,38 @@ edit("{key:'mayor', label:'Mayor',", "{key:'mayor', label:'Nodal Department',");
 edit("{key:'commissioner', label:'Commissioner',", "{key:'commissioner', label:'Nodal Officer',");
 edit('Mayor, Commissioner and SDMA', 'Nodal Department, Nodal Officer and SDMA', 3);
 
+/* ---------- one phase only: hide every phase control and label ---------- */
+// Mitigation programmes run as a single phase, so every state is Phase 1 and
+// nothing on the page mentions phases. The data keeps phase: 1 so the UFRMP
+// code paths (funding split, ids) work unchanged.
+edit('const PHASES = [1,2,3,4];', 'const PHASES = [1];');
+edit("function phasePill(phase){ return `<span class=\"pill ${PHASE_CLASS[phase]}\">Phase ${phase}</span>`; }", "function phasePill(phase){ return ''; }");
+edit('<button data-nav="phase4" style="display:none;">◈ Phase 4</button>\n', '');
+edit("document.querySelector('[data-nav=\"phase4\"]').addEventListener('click', ()=>gotoPhase(4));\n", '');
+edit("  document.querySelector('[data-nav=\"phase4\"]').style.display = isMaster() ? '' : 'none';\n", '');
+edit("  document.querySelector('[data-nav=\"phase4\"]').classList.toggle('active', ROUTE.page==='phase' && ROUTE.phase===4);\n", '');
+edit(/\n    <div class="card">\n      <div class="section-title">Programme Overview by Phase [\s\S]*?\n    <\/div>\n(?=    <div class="card">)/, '\n');
+edit(/\n          <div class="map-legend">\n            \$\{PHASES\.map[^\n]*\n          <\/div>/, '');
+edit(/<div class="section-title">Cities by Phase\n\s*<select id="phaseSelect"[^>]*>\n\s*\$\{phaseOptions\(dashboardPhaseSelected\)\}\n\s*<\/select>/, '<div class="section-title">All Cities');
+edit("  document.getElementById('phaseSelect').addEventListener('change', e=>{\n    dashboardPhaseSelected = Number(e.target.value);\n    phaseHost.innerHTML = phaseSection(dashboardPhaseSelected);\n  });\n", '');
+edit(' <span class="city-phase">· P${c.phase}</span>', '');
+edit("${esc(c.cityName)} — Phase ${c.phase}${c.ndmfShareCr?", "${esc(c.cityName)}${c.ndmfShareCr?");
+edit('<div class="contact-phase">${phasePill(c.phase)}</div>', '');
+edit(/const filter = onPhasePage \? '' : `<select onchange="setContactsPhaseFilter[\s\S]*?<\/select>`;/, "const filter = '';");
+edit(' · Phase ${c.phase}', '', 'any');
+edit("city.cityName + ' · Phase ' + city.phase", 'city.cityName');
+edit('<div class="field"><label>Phase</label>${fixedPhase\n            ? `<input disabled value="Phase ${fixedPhase}"><input type="hidden" name="phase" value="${fixedPhase}">`\n            : `<select name="phase">${phaseOptions(1)}</select>`}</div>',
+  '<input type="hidden" name="phase" value="1">');
+edit('<div class="field"><label>Phase</label><input disabled value="Phase ${city.phase}"></div>', '');
+edit('Phase 1 and 2 use a 90:10 NDMF-to-State funding split; Phase 3 and 4 use 60:40. This city is in Phase ${city.phase} (${ndmfPct}:${statePct}).',
+  'NDMF-to-State funding split: ${ndmfPct}:${statePct}.');
+edit('across all cities and phases funded', 'across all cities funded', 'any');
+edit('No Phase ${phase} cities yet.</td>', 'No cities yet.</td>');
+edit(/\n  addSheet\('Phase Summary', PHASES\.map\(phase=>\{[\s\S]*?\n  \}\)\);\n/, '\n');
+edit("addSheet('Cities & Phases',", "addSheet('Cities',");
+edit(" 'Phase': c.phase,", '', 2);
+
 /* ---------- drop UFRMP-only examples ---------- */
-edit(" (Ahmedabad and Mumbai are in Phase 1 and Phase 3)", '');
 edit('placeholder="e.g. Storm Water Drain Network — Zone 3"', 'placeholder="e.g. Mitigation Works — Package 1"');
 edit('placeholder="e.g. Storm Water Drainage / Lake Rejuvenation"', 'placeholder="e.g. Structural / Non-Structural"');
 

@@ -369,8 +369,7 @@
     <div class="nav">
       <button onclick="location.href='index.html'" title="Back to the list of mitigation programmes">⌂ All Programmes</button>
       <button data-nav="dashboard" class="active">◧ Dashboard</button>
-      <button data-nav="phase4" style="display:none;">◈ Phase 4</button>
-      <button data-nav="contacts" style="display:none;">☏ Contact Details</button>
+            <button data-nav="contacts" style="display:none;">☏ Contact Details</button>
       <button data-nav="users" style="display:none;">⚿ User Logins</button>
     </div>
     <div class="sidebar-label">States</div>
@@ -1033,7 +1032,7 @@ const CITY_SEED = (PROG.states || []).map(name=>{
   };
 });
 
-const PHASES = [1,2,3,4];
+const PHASES = [1];
 const PHASE_CLASS = {1:'p1',2:'p2',3:'p3',4:'p4'};
 // NDMF share as a percentage of a state programme's total; the State pays the rest.
 // Phase 4 follows the Phase 3 split until its guidelines say otherwise.
@@ -1274,7 +1273,7 @@ function statusPill(status){
   const map = {'Completed':'green','In Progress':'blue','Delayed':'red','Not Started':'amber'};
   return `<span class="pill ${map[status]||'amber'}">${status||'Not Started'}</span>`;
 }
-function phasePill(phase){ return `<span class="pill ${PHASE_CLASS[phase]}">Phase ${phase}</span>`; }
+function phasePill(phase){ return ''; }
 function waveBar(pct){ pct = clamp(Number(pct)||0,0,100); return `<div class="wave-track"><div class="wave-fill" style="width:${pct}%"></div></div>`; }
 function ledgerBar(pct){ pct = clamp(Number(pct)||0,0,100); return `<div class="ledger-track"><div class="ledger-fill" style="width:${pct}%"></div></div>`; }
 
@@ -1325,7 +1324,7 @@ function renderMapSvg(cities){
     const [x,y] = project(c.lat,c.lng);
     const color = phaseColor(c.phase);
     const r = c.phase===2?4.5:5.5;
-    return `<circle class="city-dot" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}" fill="${color}" onclick="gotoCity('${c.id}')"><title>${esc(c.cityName)} — Phase ${c.phase}${c.ndmfShareCr?' — ₹'+c.ndmfShareCr+' Cr':''}</title></circle>`;
+    return `<circle class="city-dot" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}" fill="${color}" onclick="gotoCity('${c.id}')"><title>${esc(c.cityName)}${c.ndmfShareCr?' — ₹'+c.ndmfShareCr+' Cr':''}</title></circle>`;
   }).join('');
   return `<svg viewBox="0 0 ${MAP_W} ${MAP_H}" width="100%" style="max-width:300px;">
     <path d="${indiaPath()}" fill="#E4ECEB" stroke="#9FB3AF" stroke-width="1.1"/>
@@ -1386,7 +1385,7 @@ function renderCityStateMap(city){
 function buildSidebarCityList(){
   const el = document.getElementById('sidebarCityList');
   el.innerHTML = DB.cityProgrammes.map(c=>
-    `<button data-city="${c.id}" class="${ROUTE.cityId===c.id?'active':''}" onclick="gotoCity('${c.id}')"><span class="city-chip">${esc(c.cityName)} <span class="city-phase">· P${c.phase}</span></span></button>`
+    `<button data-city="${c.id}" class="${ROUTE.cityId===c.id?'active':''}" onclick="gotoCity('${c.id}')"><span class="city-chip">${esc(c.cityName)}</span></button>`
   ).join('');
 }
 document.querySelector('[data-nav="dashboard"]').addEventListener('click', ()=>{
@@ -1515,14 +1514,13 @@ function renderContactsHost(){
   const onPhasePage = ROUTE.page==='phase';
   let cities = onPhasePage ? DB.cityProgrammes.filter(c=>c.phase===ROUTE.phase) : DB.cityProgrammes;
   if(!onPhasePage && contactsPhaseFilter) cities = cities.filter(c=>c.phase===contactsPhaseFilter);
-  const filter = onPhasePage ? '' : `<select onchange="setContactsPhaseFilter(this.value)" style="padding:7px 10px;border-radius:7px;border:1px solid #2A4A4D;background:#0F2A2D;color:#EAF3F1;font-size:12.5px;margin-left:auto;">
-      <option value="0">All phases</option>${PHASES.map(p=>`<option value="${p}" ${p===contactsPhaseFilter?'selected':''}>Phase ${p}</option>`).join('')}</select>`;
+  const filter = '';
   const title = onPhasePage ? `Phase ${ROUTE.phase} State Contacts` : 'State Contacts';
   const editing = getCity(contactsEditingId);
   const rows = cities.map(c=>{
     const ct = c.contacts || {};
     return `<tr>
-      <td><span class="city-chip" style="width:auto;display:inline-block;cursor:pointer;" onclick="${ROUTE.page==='contacts' ? `gotoContacts('${c.id}')` : `gotoCity('${c.id}','contacts')`}">${esc(c.cityName)}</span><div class="contact-phase">${phasePill(c.phase)}</div></td>
+      <td><span class="city-chip" style="width:auto;display:inline-block;cursor:pointer;" onclick="${ROUTE.page==='contacts' ? `gotoContacts('${c.id}')` : `gotoCity('${c.id}','contacts')`}">${esc(c.cityName)}</span></td>
       ${CONTACT_GROUPS.map(g=>`<td class="contact-cell">${contactSummary(g.key, ct[g.key])}</td>`).join('')}
       <td><button class="btn" style="padding:5px 10px;font-size:11.5px;" onclick="editCityContacts('${c.id}')">Edit</button></td>
     </tr>`;
@@ -1580,7 +1578,7 @@ function phaseSection(phase){
       <span class="hint">Total NDMF Share: ${phaseTotal? fmtCr(phaseTotal) : '—'}${hasUnknown? ' (some shares TBD)':''}</span>
     </div>
     <table><thead><tr><th>State</th><th class="num">NDMF Share</th><th class="num">Projects</th><th class="num">Physical %</th><th class="num">Approval %</th></tr></thead>
-    <tbody>${rows || `<tr><td colspan="5" class="empty">No Phase ${phase} states yet.</td></tr>`}</tbody></table>
+    <tbody>${rows || `<tr><td colspan="5" class="empty">No states yet.</td></tr>`}</tbody></table>
   </div>`;
 }
 
@@ -1618,9 +1616,7 @@ function addCityFormHtml(fixedPhase){
       <form id="fAddCity">
         <div class="grid2">
           <div class="field"><label>State Name</label><input required type="text" name="cityName" placeholder="e.g. Assam" list="stateNameList"><datalist id="stateNameList">${Object.keys(STATE_INFO).map(n=>`<option value="${esc(n)}">`).join('')}</datalist></div>
-          <div class="field"><label>Phase</label>${fixedPhase
-            ? `<input disabled value="Phase ${fixedPhase}"><input type="hidden" name="phase" value="${fixedPhase}">`
-            : `<select name="phase">${phaseOptions(1)}</select>`}</div>
+          <input type="hidden" name="phase" value="1">
         </div>
         <div class="grid2">
           <div class="field"><label>Latitude</label><input type="number" step="0.0001" name="lat" placeholder="filled in for Indian states"></div>
@@ -1685,7 +1681,7 @@ function renderDashboard(){
   main.innerHTML = `
     <div class="dash-dark">
     <div class="page-head">
-      <div><h1>${esc(PROG.name)}</h1><p>${PROG.detail ? esc(PROG.detail) + ' ' : ''}${esc(PROG.category)} mitigation programme · works across all states and phases</p></div>
+      <div><h1>${esc(PROG.name)}</h1><p>${PROG.detail ? esc(PROG.detail) + ' ' : ''}${esc(PROG.category)} mitigation programme · works across all states</p></div>
     </div>
     ${renderProgrammeInfo()}
     ${renderUnitToggle()}
@@ -1704,28 +1700,16 @@ function renderDashboard(){
       ${showAddCityForm ? addCityFormHtml() : ''}
     </div>
     <div class="card">
-      <div class="section-title">Programme Overview by Phase <span class="hint">each phase runs its own state set and funding envelope — click a card to jump to its state list below. A state can run under more than one phase, so phase counts don't sum to the total number of distinct states.</span></div>
-      <div class="phase-overview-grid">
-        ${PHASES.map(phaseOverview).join('')}
-      </div>
-    </div>
-    <div class="card">
       <div class="section-title">All States on the Map <span class="hint">click a dot or a row below to open that state's page</span></div>
       <div class="map-wrap">
         <div class="map-svg-wrap">
           ${renderMapSvg()}
-          <div class="map-legend">
-            ${PHASES.map(p=>`<span><span class="legend-dot" style="background:${phaseColor(p)}"></span>Phase ${p}</span>`).join('')}
-          </div>
           <div class="map-note">Country and state outlines from Survey of India boundary data (simplified for display); state positions are approximate.</div>
         </div>
       </div>
     </div>
     <div class="card" id="phaseTableCard">
-      <div class="section-title">States by Phase
-        <select id="phaseSelect" style="padding:7px 10px;border-radius:7px;border:1px solid #2A4A4D;background:#0F2A2D;color:#EAF3F1;font-size:12.5px;">
-          ${phaseOptions(dashboardPhaseSelected)}
-        </select>
+      <div class="section-title">All States
       </div>
       <div id="phaseTableHost"></div>
     </div>
@@ -1733,10 +1717,6 @@ function renderDashboard(){
   `;
   const phaseHost = document.getElementById('phaseTableHost');
   phaseHost.innerHTML = phaseSection(dashboardPhaseSelected);
-  document.getElementById('phaseSelect').addEventListener('change', e=>{
-    dashboardPhaseSelected = Number(e.target.value);
-    phaseHost.innerHTML = phaseSection(dashboardPhaseSelected);
-  });
   document.getElementById('toggleAddCityBtn').addEventListener('click', ()=>{
     showAddCityForm = !showAddCityForm;
     renderDashboard();
@@ -1828,7 +1808,7 @@ function renderContactsPage(){
   buildSidebarCityList();
   const main = document.getElementById('main');
   if(contactsPageCityId && !getCity(contactsPageCityId)) contactsPageCityId = '';
-  const opts = DB.cityProgrammes.map(c=>`<option value="${esc(c.id)}" ${c.id===contactsPageCityId?'selected':''}>${esc(c.cityName)} · Phase ${c.phase}</option>`).join('');
+  const opts = DB.cityProgrammes.map(c=>`<option value="${esc(c.id)}" ${c.id===contactsPageCityId?'selected':''}>${esc(c.cityName)}</option>`).join('');
   main.innerHTML = `
     <div class="dash-dark">
     <div class="crumb"><span onclick="gotoDashboard()">All States</span> / Contact Details</div>
@@ -1901,8 +1881,8 @@ function exportLiveDataToXLSX(){
     XLSX.utils.book_append_sheet(wb, ws, name.slice(0,31)); // Excel sheet-name limit
   };
 
-  addSheet('States & Phases', (DB.cityProgrammes||[]).map(c=>({
-    'State Programme ID': c.id, 'State': c.cityName, 'Phase': c.phase,
+  addSheet('States', (DB.cityProgrammes||[]).map(c=>({
+    'State Programme ID': c.id, 'State': c.cityName,
     'NDMF Share (Cr)': c.ndmfShareCr, 'State Share (Cr)': c.stateShareCr,
     'Approved Project Amount (Cr)': c.approvedProjectsAmountCr,
     'Latitude': c.lat, 'Longitude': c.lng
@@ -1912,27 +1892,13 @@ function exportLiveDataToXLSX(){
   (DB.cityProgrammes||[]).forEach(c=>CONTACT_GROUPS.forEach(g=>{
     const v = (c.contacts||{})[g.key] || {};
     contactRows.push({
-      'State Programme ID': c.id, 'State': c.cityName, 'Phase': c.phase, 'Contact': g.label,
+      'State Programme ID': c.id, 'State': c.cityName, 'Contact': g.label,
       'Name': v.name||'', 'Designation': v.designation||'', 'Concerned Department': v.department||'',
       'Phone (Office)': v.phoneOffice||'', 'Phone (Personal)': v.phonePersonal||'', 'Email ID': v.email||''
     });
   }));
   addSheet('State Contacts', contactRows);
 
-  addSheet('Phase Summary', PHASES.map(phase=>{
-    const cities = (DB.cityProgrammes||[]).filter(c=>c.phase===phase);
-    const ids = new Set(cities.map(c=>c.id));
-    const works = (DB.works||[]).filter(w=>ids.has(workCityId(w)));
-    return {
-      'Phase': phase, 'State Programmes': cities.length,
-      'States': cities.map(c=>c.cityName).join(', '),
-      'NDMF Share (Cr)': cities.reduce((s,c)=>s+Number(c.ndmfShareCr||0),0),
-      'NDMF:State Split': `${PHASE_NDMF_PCT[phase]}:${100-PHASE_NDMF_PCT[phase]}`,
-      'Approved Component Budget (INR)': cities.reduce((s,c)=>s+cityFinancial(c.id).sanctioned,0),
-      'Works': works.length,
-      'Avg Physical Progress (%)': works.length ? Number((works.reduce((s,w)=>s+Number(w.physicalProgressPct||0),0)/works.length).toFixed(1)) : 0
-    };
-  }));
 
   addSheet('Components', (DB.components||[]).map(c=>({
     'Component ID': c.id, 'State Programme ID': c.cityProgrammeId, 'Component Name': c.name,
@@ -3036,7 +3002,7 @@ function renderCityEntry(city, host){
     <form id="fProgramme">
       <div class="grid3">
         <div class="field"><label>State Name</label><input disabled value="${esc(city.cityName)}"></div>
-        <div class="field"><label>Phase</label><input disabled value="Phase ${city.phase}"></div>
+        
         <div class="field"><label>NDMF Share (₹ Crore)</label><input type="number" step="0.01" name="ndmfShareCr" id="pgNdmf" value="${city.ndmfShareCr!==null?city.ndmfShareCr:''}" placeholder="e.g. 500"></div>
       </div>
       <div class="grid3">
@@ -3044,7 +3010,7 @@ function renderCityEntry(city, host){
         <div class="field"><label>Approved Projects Amount (₹ Crore)</label><input type="number" step="0.01" name="approvedProjectsAmountCr" value="${city.approvedProjectsAmountCr!==null&&city.approvedProjectsAmountCr!==undefined?city.approvedProjectsAmountCr:''}" placeholder="Total value of approved projects"></div>
         <div class="field"><label>NDRF Share (₹ Crore)</label><input type="number" step="0.01" name="ndrfShareCr" value="${city.ndrfShareCr!==null&&city.ndrfShareCr!==undefined?city.ndrfShareCr:''}" placeholder="National Disaster Response Fund share"></div>
       </div>
-      <p style="font-size:12px;color:var(--muted);">Phase 1 and 2 use a 90:10 NDMF-to-State funding split; Phase 3 and 4 use 60:40. This state is in Phase ${city.phase} (${ndmfPct}:${statePct}). State Share auto-fills as a suggestion when you update NDMF Share, but you can override it. Approved Projects Amount and NDRF Share are entered independently.</p>
+      <p style="font-size:12px;color:var(--muted);">NDMF-to-State funding split: ${ndmfPct}:${statePct}. State Share auto-fills as a suggestion when you update NDMF Share, but you can override it. Approved Projects Amount and NDRF Share are entered independently.</p>
       <div class="form-actions"><button class="btn" type="submit">Save Programme Figures</button></div>
     </form>`;
     const pgNdmf = document.getElementById('pgNdmf'), pgState = document.getElementById('pgState');
@@ -3124,11 +3090,11 @@ async function refreshUsers(){
   }
   if(ROUTE.page==='users') renderUsers();
 }
-function userCityLabel(cityId){ const c = getCity(cityId); return c ? `${c.cityName} · Phase ${c.phase}` : `${cityId} (city not found)`; }
+function userCityLabel(cityId){ const c = getCity(cityId); return c ? `${c.cityName}` : `${cityId} (city not found)`; }
 function cityOptionsHtml(selected, withLoginCount){
   return DB.cityProgrammes.map(c=>{
     const n = withLoginCount ? (USERS_LIST||[]).filter(u=>u.city_id===c.id).length : 1;
-    return `<option value="${esc(c.id)}" ${c.id===selected?'selected':''}>${esc(c.cityName)} · Phase ${c.phase}${n?'':' (no login yet)'}</option>`;
+    return `<option value="${esc(c.id)}" ${c.id===selected?'selected':''}>${esc(c.cityName)}${n?'':' (no login yet)'}</option>`;
   }).join('');
 }
 function renderUsers(){
@@ -3259,7 +3225,6 @@ async function deleteUserLogin(userId){
 window.editUser = editUser;
 window.saveUserEdit = saveUserEdit;
 window.deleteUserLogin = deleteUserLogin;
-document.querySelector('[data-nav="phase4"]').addEventListener('click', ()=>gotoPhase(4));
 document.querySelector('[data-nav="contacts"]').addEventListener('click', ()=>gotoContacts());
 document.querySelector('[data-nav="users"]').addEventListener('click', ()=>{
   ROUTE = { page:'users', cityId:null, cityTab:'overview', componentId:null, dprId:null, workId:null };
@@ -3328,12 +3293,11 @@ function applyUserChrome(){
   const box = document.getElementById('sidebarUser');
   if(!CURRENT_USER){ box.style.display = 'none'; return; }
   const city = getCity(userCityId());
-  const access = isMaster() ? 'Master · all states' : (city ? city.cityName + ' · Phase ' + city.phase : 'State login');
+  const access = isMaster() ? 'Master · all states' : (city ? city.cityName : 'State login');
   box.innerHTML = `Signed in as <strong>${esc(CURRENT_USER.username)}</strong><br>${esc(access)}<br><button onclick="signOut()">Sign out</button>`;
   box.style.display = '';
   document.querySelector('[data-nav="users"]').style.display = isMaster() ? '' : 'none';
   document.querySelector('[data-nav="dashboard"]').style.display = isMaster() ? '' : 'none';
-  document.querySelector('[data-nav="phase4"]').style.display = isMaster() ? '' : 'none';
   document.querySelector('[data-nav="contacts"]').style.display = isMaster() ? '' : 'none';
   const sub = document.querySelector('.brand-sub');
   if(sub) sub.textContent = isMaster() ? PROG.short + ' · ALL STATES' : PROG.short + ' · ' + (city ? city.cityName.toUpperCase() : 'STATE');
@@ -3379,7 +3343,6 @@ function render(){
   }
   document.querySelector('[data-nav="dashboard"]').classList.toggle('active', ROUTE.page==='dashboard');
   document.querySelector('[data-nav="users"]').classList.toggle('active', ROUTE.page==='users');
-  document.querySelector('[data-nav="phase4"]').classList.toggle('active', ROUTE.page==='phase' && ROUTE.phase===4);
   document.querySelector('[data-nav="contacts"]').classList.toggle('active', ROUTE.page==='contacts');
   if(ROUTE.page==='dashboard') renderDashboard();
   else if(ROUTE.page==='contacts') renderContactsPage();
